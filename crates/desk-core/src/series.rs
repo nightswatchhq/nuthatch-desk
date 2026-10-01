@@ -112,6 +112,18 @@ impl Series {
         self.clear()
     }
 
+    /// How many points at the front would be older than `window`, were it the window.
+    pub fn stale_under(&self, window: Duration) -> usize {
+        let Some(newest) = self.points.back().map(|point| point.at) else {
+            return 0;
+        };
+        let oldest_kept = newest - window.as_secs_f64();
+        self.points
+            .iter()
+            .take_while(|point| point.at < oldest_kept)
+            .count()
+    }
+
     /// Keeps `window` of history from now on. Returns how many points fell out of the front.
     pub fn set_window(&mut self, window: Duration) -> usize {
         self.window = window;

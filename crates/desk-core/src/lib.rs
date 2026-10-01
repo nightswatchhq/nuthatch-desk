@@ -12,4 +12,5 @@ pub mod format;
 pub mod grid;
 pub mod results;
 pub mod series;
+pub mod startup;
 pub mod status;

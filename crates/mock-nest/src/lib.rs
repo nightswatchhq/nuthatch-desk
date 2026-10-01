@@ -7,7 +7,10 @@ use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Write},
     net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc, Mutex, MutexGuard, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -45,6 +48,8 @@ struct Routes {
     fixed: HashMap<String, Response>,
     delays: HashMap<String, Duration>,
     sql: Option<Handler>,
+    slow: Vec<(String, Duration)>,
+    flags: HashMap<String, Arc<AtomicBool>>,
     hits: HashMap<String, usize>,
 }
 
@@ -52,6 +57,7 @@ struct Routes {
 pub struct MockNest {
     port: u16,
     routes: Arc<Mutex<Routes>>,
+    stopped: Arc<AtomicBool>,
 }
 
 fn lock(routes: &Mutex<Routes>) -> MutexGuard<'_, Routes> {
@@ -64,14 +70,23 @@ impl MockNest {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind a loopback port");
         let port = listener.local_addr().expect("local address").port();
         let routes = Arc::new(Mutex::new(Routes::default()));
-        let shared = Arc::clone(&routes);
+        let stopped = Arc::new(AtomicBool::new(false));
+        let (shared, stop) = (Arc::clone(&routes), Arc::clone(&stopped));
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
+                if stop.load(Ordering::SeqCst) {
+                    // Dropping the listener is what makes later connections fail.
+                    return;
+                }
                 let routes = Arc::clone(&shared);
                 std::thread::spawn(move || serve(stream, &routes));
             }
         });
-        Self { port, routes }
+        Self {
+            port,
+            routes,
+            stopped,
+        }
     }
 
     /// Starts a nest serving the recorded bodies of a healthy nest.
@@ -122,6 +137,31 @@ impl MockNest {
         lock(&self.routes).sql = Some(Box::new(handler));
     }
 
+    /// Holds back by `delay` every statement that contains `marker`.
+    pub fn slow(&self, marker: &str, delay: Duration) {
+        lock(&self.routes).slow.push((marker.to_owned(), delay));
+    }
+
+    /// A flag that a request to `path` sets. The request is answered 200, so the thing under test
+    /// can tell the test it has reached some point by fetching `path`.
+    pub fn flag(&self, path: &str) -> Arc<AtomicBool> {
+        let flag = Arc::new(AtomicBool::new(false));
+        lock(&self.routes)
+            .flags
+            .insert(path.to_owned(), Arc::clone(&flag));
+        flag
+    }
+
+    /// Stops listening: every later connection is refused, as with a nest that has exited.
+    pub fn shutdown(&self) {
+        self.stopped.store(true, Ordering::SeqCst);
+        // The accept loop is woken by one last connection, sees the flag and drops the listener.
+        let _ = TcpStream::connect(("127.0.0.1", self.port));
+        while TcpStream::connect(("127.0.0.1", self.port)).is_ok() {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
     /// How many requests `path` has received.
     pub fn hits(&self, path: &str) -> usize {
         lock(&self.routes).hits.get(path).copied().unwrap_or(0)
@@ -147,14 +187,26 @@ fn serve(mut stream: TcpStream, routes: &Mutex<Routes>) {
     let (delay, (status, body)) = {
         let mut routes = lock(routes);
         *routes.hits.entry(path.to_owned()).or_default() += 1;
-        let delay = routes.delays.get(path).copied();
-        let response = match (&routes.sql, path) {
-            (Some(handler), "/sql") => handler(&statement_of(query)),
-            _ => routes
+        let mut delay = routes.delays.get(path).copied();
+        let response = if let Some(flag) = routes.flags.get(path) {
+            flag.store(true, Ordering::SeqCst);
+            (200, String::new())
+        } else if let (Some(handler), "/sql") = (&routes.sql, path) {
+            let statement = statement_of(query);
+            delay = delay.or_else(|| {
+                routes
+                    .slow
+                    .iter()
+                    .find(|(marker, _)| statement.contains(marker))
+                    .map(|(_, delay)| *delay)
+            });
+            handler(&statement)
+        } else {
+            routes
                 .fixed
                 .get(path)
                 .cloned()
-                .unwrap_or((404, String::new())),
+                .unwrap_or((404, String::new()))
         };
         (delay, response)
     };

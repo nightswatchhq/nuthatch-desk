@@ -19,6 +19,10 @@
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
 mod guard;
+pub mod metric_series;
 pub mod nest_status;
+pub mod result_model;
+pub mod sql_query;
+pub mod table_list;
 #[cfg(feature = "lifetime-probe")]
 pub mod probe;

@@ -20,11 +20,11 @@ harness = false
 desk-bridge = { path = "../desk-bridge" }
 cxx-qt.workspace = true
 cxx-qt-lib = { workspace = true, features = ["qt_full"] }
+desk-core = { path = "../desk-core" }
 nest-client = { path = "../nest-client" }
 
 [dev-dependencies]
 desk-bridge = { path = "../desk-bridge", features = ["lifetime-probe"] }
-desk-core = { path = "../desk-core" }
 mock-nest = { path = "../mock-nest" }
 
 [build-dependencies]
