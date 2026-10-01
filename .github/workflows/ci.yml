@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A superseded PR run wastes a runner nobody reads the result of. Pushes to `main` are never
+  # cancelled.
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The crates that do not link Qt, on a runner that has none. This is the RFC's claim that the
+  # logic is tested "everywhere, no Qt", held to account.
+  core:
+    name: no Qt · fmt · test · deny
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: core
+      - run: cargo fmt --all --check
+      - run: cargo test --locked -p nest-client -p desk-core -p mock-nest
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  linux:
+    name: Linux · build · clippy · test · qmllint
+    # 26.04 is the first LTS whose own packages carry a Qt new enough: 24.04 has 6.4.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Qt from the distribution's packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qt6-base-dev qt6-base-dev-tools qt6-declarative-dev qt6-declarative-dev-tools \
+            libgl1-mesa-dev \
+            qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
+            qml6-module-qtquick-shapes qml6-module-qtquick-templates qml6-module-qtquick-window \
+            qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript
+          echo "QMAKE=$(command -v qmake6)" >> "$GITHUB_ENV"
+          qmake6 -query QT_INSTALL_BINS >> "$GITHUB_PATH"
+          qmake6 -query QT_VERSION
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - run: tools/lint-qml.sh
+
+  macos:
+    name: macOS · build · clippy · test · qmllint
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Qt from Homebrew
+        run: |
+          brew install qt
+          qmake -query QT_VERSION
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - run: tools/lint-qml.sh

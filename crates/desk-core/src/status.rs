@@ -254,6 +254,10 @@ impl Status {
                 ),
             );
         }
+        if ready.initial_poll_failed {
+            // Such a nest reports tip 0 and lag 0, which would otherwise read as "at tip".
+            return (0.0, "the nest has not polled its RPC yet".into());
+        }
         let (Some(_), Some(lag)) = (ready.tip, ready.lag_blocks) else {
             return (0.0, "cursorless".into());
         };
@@ -530,6 +534,26 @@ pub(crate) mod tests {
         assert_eq!(view.tip, None);
         assert_eq!(view.lag_blocks, None);
         assert_eq!(view.sync_label, "cursorless");
+    }
+
+    #[test]
+    fn a_nest_that_never_polled_is_not_at_tip() {
+        let mut status = Status::default();
+        status.apply(&snapshot(
+            Instant::now(),
+            Ok(Ready {
+                ready: false,
+                stalled: true,
+                initial_poll_failed: true,
+                tip: Some(0),
+                lag_blocks: Some(0),
+                ..Ready::default()
+            }),
+        ));
+        let view = status.view();
+        assert_eq!(view.state, State::Attention);
+        assert_eq!(view.sync_fraction, 0.0);
+        assert_eq!(view.sync_label, "the nest has not polled its RPC yet");
     }
 
     #[test]
