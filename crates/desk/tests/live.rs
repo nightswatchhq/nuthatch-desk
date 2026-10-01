@@ -53,6 +53,10 @@ const SCENARIOS: &[Scenario] = &[
     ("a_metric_keeps_its_history", a_metric_keeps_its_history),
     ("two_nests_one_stopped", two_nests_one_stopped),
     (
+        "a_result_is_copied_out_as_csv",
+        a_result_is_copied_out_as_csv,
+    ),
+    (
         "a_default_text_item_would_fetch_a_nests_markup",
         a_default_text_item_would_fetch,
     ),
@@ -744,6 +748,55 @@ Main {{
     })
 }
 
+fn a_result_is_copied_out_as_csv() -> Result<(), String> {
+    let nest = MockNest::recorded();
+    let url = nest.url();
+    run(&format!(
+        r#"
+import QtQuick
+import desk.bridge
+import desk.app
+
+Main {{
+    id: main
+    nestNames: ["nest"]
+    nestUrls: ["{url}"]
+    nestNotes: [""]
+
+    // Where the clipboard is read back from.
+    TextEdit {{ id: pasted; visible: false; textFormat: TextEdit.PlainText }}
+
+    Timer {{
+        interval: 100; repeat: true; running: true
+        property int step: 0
+        onTriggered: {{
+            let page = main.pages.itemAt(0)
+            if (!page)
+                return
+            if (step === 0 && page.status.state === NestStatus.Live) {{
+                step = 1
+                page.query.run("SELECT * FROM t")
+            }} else if (step === 1 && page.results.rows === 3) {{
+                step = 2
+                page.results.sortBy(10)
+                page.copy(page.results.csv())
+                pasted.paste()
+                let lines = pasted.text.split("\n")
+                let ok = lines.length === 5 && lines[0].indexOf("_seq,address,block_hash") === 0
+                    && lines[1].indexOf(",321000000,321000000,false") > 0
+                    && lines[3].indexOf(",1000000000000,1000000000000,false") > 0
+                if (!ok)
+                    console.error("the clipboard held", lines.length, "lines:", pasted.text)
+                Qt.exit(ok ? 0 : 1)
+            }}
+        }}
+    }}
+    Timer {{ interval: 8000; running: true; onTriggered: {{ console.error("timed out"); Qt.exit(1) }} }}
+}}
+"#
+    ))
+}
+
 /// A nest that names itself in markup which, rendered, fetches `/fetched` from the nest.
 fn hostile_nest() -> MockNest {
     let nest = MockNest::recorded();
@@ -800,8 +853,18 @@ Main {{
     nestUrls: ["{url}"]
     nestNotes: ["<img src='{url}/fetched'>"]
     configProblem: "<img src='{url}/fetched'>"
+    // A page with a note waits to be told its forward is open.
     Timer {{
-        interval: 2500; running: true
+        interval: 500; running: true
+        onTriggered: {{
+            let page = main.pages.itemAt(0)
+            if (page.status.url !== "" || page.status.state !== NestStatus.Connecting)
+                Qt.exit(2)
+            page.status.connectTo(page.url)
+        }}
+    }}
+    Timer {{
+        interval: 3000; running: true
         onTriggered: {{
             let page = main.pages.itemAt(0)
             Qt.exit(page && page.status.nestName.indexOf("<img") === 0

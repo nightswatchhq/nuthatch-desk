@@ -33,7 +33,13 @@ Item {
         clipboard.text = ""
     }
 
-    Component.onCompleted: status.connectTo(page.url)
+    // A nest the config reaches through ssh is not polled until the reader says the forward is
+    // open. Without one its URL names a port on this machine, and whatever else listens there
+    // would be shown under this nest's name.
+    Component.onCompleted: {
+        if (page.note === "")
+            status.connectTo(page.url)
+    }
 
     NestStatus {
         id: status
@@ -135,13 +141,24 @@ Item {
             text: "Plain HTTP to a remote host: what this page shows can be read and altered in transit. Reach the nest through an ssh forward or TLS."
         }
 
-        PlainLabel {
+        RowLayout {
             Layout.fillWidth: true
             visible: page.note !== ""
-            color: "#c9a227"
-            wrapMode: Text.Wrap
-            elide: Text.ElideNone
-            text: page.note
+            spacing: 12
+
+            PlainLabel {
+                Layout.fillWidth: true
+                color: "#c9a227"
+                wrapMode: Text.Wrap
+                elide: Text.ElideNone
+                text: page.note
+            }
+
+            Button {
+                visible: status.url === ""
+                text: "The forward is open: connect"
+                onClicked: status.connectTo(page.url)
+            }
         }
 
         PlainLabel {
@@ -393,7 +410,8 @@ Item {
 
                 Shortcut {
                     sequence: "Ctrl+Return"
-                    enabled: sections.currentIndex === 2 && tables.sqlOpen
+                    // Only the page in front: two tabs both claiming the keys would get neither.
+                    enabled: page.visible && sections.currentIndex === 2 && tables.sqlOpen
                     onActivated: query.run(editor.text)
                 }
 

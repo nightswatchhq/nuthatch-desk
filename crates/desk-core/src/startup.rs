@@ -77,7 +77,7 @@ pub fn plan(urls: &[String], config: Option<&str>) -> Plan {
             let note = target.ssh.map_or_else(String::new, |host| {
                 format!(
                     "nests.toml reaches this nest through the ssh host '{host}'. \
-                     nuthatch-desk opens no forward of its own: open one to {url} first."
+                     nuthatch-desk opens no forward of its own: open one to {url}, then connect."
                 )
             });
             Tab { name, url, note }
