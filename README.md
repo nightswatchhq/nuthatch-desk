@@ -37,11 +37,13 @@ text and not as a double.
 ## Build
 
 `cargo build` is the whole build. There is no CMake. You need a Rust toolchain, a C++ compiler, and
-Qt 6.5 or newer with its QML modules.
+Qt 6 with its QML modules. It is written for Qt 6.5 and newer, and CI builds and tests it against
+6.8.3, 6.10.2 and 6.11.2. Nothing older has been tried.
 
 | Platform | Qt |
 | --- | --- |
 | macOS | `brew install qt` |
+| Windows, MSVC | Qt 6.8 or newer for `msvc2022_64`, from Qt's installer, with its `bin` on the path |
 | Ubuntu 26.04 | `sudo apt install qt6-base-dev qt6-base-dev-tools qt6-declarative-dev qt6-declarative-dev-tools libgl1-mesa-dev lld qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-templates qml6-module-qtquick-window qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript` |
 
 Ubuntu 24.04's own Qt is 6.4, which is too old.
@@ -124,7 +126,8 @@ DESK_SHOT_URL=http://127.0.0.1:8288 DESK_SHOT_OUT=/tmp/desk.png QT_QPA_PLATFORM=
 - `decimals` in `nests.toml` is read and not yet applied: amounts are in base units.
 - Cancelling a statement stops the client waiting. The nest still finishes it.
 - A free-form result's columns come in the order the nest sends them, which is alphabetical.
-- Windows is not yet supported. See the RFC's slice 6.
+- On Windows it builds and passes its tests in CI. Nobody has yet sat in front of it there.
+- The tests drive the objects and read what they show. None of them clicks.
 
 ## Licence
 
