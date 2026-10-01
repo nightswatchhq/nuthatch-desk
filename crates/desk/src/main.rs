@@ -64,7 +64,7 @@ fn main() -> ExitCode {
         let mut properties = QMap::<QMapPair_QString_QVariant>::default();
         properties.insert(QString::from("nestNames"), list(|tab| &tab.name));
         properties.insert(QString::from("nestUrls"), list(|tab| &tab.url));
-        properties.insert(QString::from("nestNotes"), list(|tab| &tab.note));
+        properties.insert(QString::from("nestSsh"), list(|tab| &tab.ssh));
         properties.insert(
             QString::from("configProblem"),
             QVariant::from(&QString::from(&unreadable.unwrap_or(plan.problem))),

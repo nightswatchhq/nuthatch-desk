@@ -5,6 +5,9 @@
 //! snapshot and posts it to wherever it lives. The worker knows the nest's URL and a list of sinks.
 //! A sink that answers [`Delivery::Gone`] is dropped, and a worker with no sinks left exits.
 //!
+//! A nest reached through ssh has its forward opened, watched and closed by its worker, so the
+//! fifteen seconds `ssh` may take to connect are spent on that thread and nowhere else.
+//!
 //! Nothing here blocks the caller for longer than a lock held across a few closure calls. In
 //! particular dropping a [`Subscription`] never waits for the worker, which may be in the middle of
 //! a request: it finishes that request, finds nobody listening, and goes.
@@ -22,6 +25,7 @@ use std::{
 use nest_client::{
     Client, Error, Limits,
     poll::{Poller, Request, Snapshot},
+    tunnel::{self, Tunnel},
 };
 
 use crate::status::poll_interval;
@@ -30,6 +34,8 @@ use crate::status::poll_interval;
 const POLL_TIMEOUT: Duration = Duration::from_secs(10);
 /// Newest rows fetched for the selected table.
 pub const FEED_ROWS: usize = 50;
+/// How soon to look again at a forward that is down and reopening itself.
+const FORWARD_DOWN_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Whether a sink is still there to deliver to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +49,29 @@ pub enum Delivery {
 /// Where snapshots go. Called on the worker thread, and once on the subscribing thread if a
 /// snapshot is already to hand, so it must only post the snapshot on, never act on it.
 pub type Sink = Box<dyn FnMut(&Arc<Snapshot>) -> Delivery + Send>;
+
+/// A way to a nest that is not its URL: an ssh forward, or a test's stand-in for one.
+pub trait Forward: Send {
+    /// The nest's URL through the forward.
+    fn local_url(&self) -> &str;
+    /// Called before each poll. What to say while the forward is down, or `None` while it is up.
+    fn supervise(&mut self) -> Option<String>;
+}
+
+impl Forward for Tunnel {
+    fn local_url(&self) -> &str {
+        Tunnel::local_url(self)
+    }
+
+    fn supervise(&mut self) -> Option<String> {
+        Tunnel::supervise(self)
+    }
+}
+
+/// Opens a forward through a host to a URL as seen from that host. The last argument is asked
+/// now and then whether to give up.
+pub type Opener =
+    Box<dyn Fn(&str, &str, &dyn Fn() -> bool) -> Result<Box<dyn Forward>, String> + Send + Sync>;
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     // A panic elsewhere must not take every later poll down with it.
@@ -58,18 +87,24 @@ struct Control {
 }
 
 struct Feed {
+    /// The nest's URL: as seen from this machine, or from `via` when there is one.
     url: String,
+    /// The ssh host the nest is reached through.
+    via: Option<String>,
     control: Mutex<Control>,
     wake: Condvar,
 }
 
 struct Shared {
     client: Client,
+    opener: Opener,
+    /// Feeds by the name they were subscribed under. A nest behind a forward is also listed under
+    /// the forward's local URL once it is open, so whatever is given that URL joins the same feed.
     feeds: Mutex<HashMap<String, Arc<Feed>>>,
     workers: AtomicUsize,
 }
 
-/// The polling threads, one per nest URL.
+/// The polling threads, one per nest.
 #[derive(Clone)]
 pub struct Hub {
     shared: Arc<Shared>,
@@ -82,11 +117,23 @@ pub struct Subscription {
 }
 
 impl Hub {
-    /// A hub whose workers fetch with `client`.
+    /// A hub whose workers fetch with `client` and open forwards with `ssh`.
     pub fn new(client: Client) -> Self {
+        Self::with_opener(
+            client,
+            Box::new(|host, url, quit| {
+                Tunnel::open("ssh", host, url, quit)
+                    .map(|tunnel| Box::new(tunnel) as Box<dyn Forward>)
+            }),
+        )
+    }
+
+    /// A hub that opens forwards with `opener`.
+    pub fn with_opener(client: Client, opener: Opener) -> Self {
         Self {
             shared: Arc::new(Shared {
                 client,
+                opener,
                 feeds: Mutex::default(),
                 workers: AtomicUsize::new(0),
             }),
@@ -110,13 +157,27 @@ impl Hub {
     ///
     /// If the nest has been polled already, `sink` is called with the last snapshot before this
     /// returns, so a late subscriber does not wait a poll interval to show anything.
-    pub fn subscribe(&self, url: &str, mut sink: Sink) -> Subscription {
+    pub fn subscribe(&self, url: &str, sink: Sink) -> Subscription {
+        self.join(None, url, sink)
+    }
+
+    /// As [`Hub::subscribe`], for a nest at `url` as seen from the ssh host `host`. The worker
+    /// opens the forward. Until it is open, and whenever it is down, snapshots carry
+    /// [`Error::Forward`] and an empty [`Snapshot::base`].
+    pub fn subscribe_via(&self, host: &str, url: &str, sink: Sink) -> Subscription {
+        self.join(Some(host), url, sink)
+    }
+
+    fn join(&self, via: Option<&str>, url: &str, mut sink: Sink) -> Subscription {
+        // A host has no space in it and nor has a URL, so the two cannot be confused.
+        let key = via.map_or_else(|| url.to_owned(), |host| format!("{host} {url}"));
         // Held across the whole call so a worker cannot retire the feed between finding it and
         // joining it. A retiring worker takes this lock first too.
         let mut feeds = lock(&self.shared.feeds);
-        let feed = feeds.entry(url.to_owned()).or_insert_with(|| {
+        let feed = feeds.entry(key).or_insert_with(|| {
             let feed = Arc::new(Feed {
                 url: url.to_owned(),
+                via: via.map(str::to_owned),
                 control: Mutex::new(Control {
                     sinks: Vec::new(),
                     next_id: 0,
@@ -154,7 +215,7 @@ impl Hub {
 }
 
 impl Subscription {
-    /// The URL polled.
+    /// The nest's URL, as it was subscribed to.
     pub fn url(&self) -> &str {
         &self.feed.url
     }
@@ -191,50 +252,106 @@ impl Drop for Subscription {
     }
 }
 
+/// How a worker reaches its nest: directly, or through a forward it opens and keeps.
+struct Route {
+    poller: Option<Poller>,
+    forward: Option<Box<dyn Forward>>,
+    /// Failures to open the forward since it last opened.
+    failures: u32,
+}
+
+impl Route {
+    /// One poll and how long to wait before the next. A forward that is not up yields a snapshot
+    /// that says so.
+    fn poll(
+        &mut self,
+        shared: &Shared,
+        feed: &Arc<Feed>,
+        request: &Request,
+    ) -> (Snapshot, Duration) {
+        if let Some(host) = &feed.via {
+            match &mut self.forward {
+                None => {
+                    let nobody_listening = || lock(&feed.control).sinks.is_empty();
+                    match (shared.opener)(host, &feed.url, &nobody_listening) {
+                        Ok(forward) => {
+                            let local = forward.local_url().to_owned();
+                            lock(&shared.feeds).insert(local.clone(), Arc::clone(feed));
+                            self.poller = Some(Poller::new(shared.client.clone(), local));
+                            self.forward = Some(forward);
+                            self.failures = 0;
+                        }
+                        Err(reason) => {
+                            let wait = tunnel::backoff(self.failures);
+                            self.failures += 1;
+                            return (Snapshot::failed(Error::Forward(reason)), wait);
+                        }
+                    }
+                }
+                Some(forward) => {
+                    if let Some(reason) = forward.supervise() {
+                        let down = Snapshot {
+                            base: forward.local_url().to_owned(),
+                            ..Snapshot::failed(Error::Forward(reason))
+                        };
+                        return (down, FORWARD_DOWN_INTERVAL);
+                    }
+                }
+            }
+        }
+        let poller = self
+            .poller
+            .get_or_insert_with(|| Poller::new(shared.client.clone(), feed.url.clone()));
+        let snapshot = poller.poll(request);
+        let interval = poll_interval(
+            snapshot
+                .ready
+                .as_ref()
+                .ok()
+                .and_then(|ready| ready.freshness.as_ref())
+                .and_then(|freshness| freshness.poll_interval_secs),
+        );
+        (snapshot, interval)
+    }
+}
+
 /// The worker: poll, deliver, wait, until nobody is listening.
-fn run(shared: &Shared, feed: &Feed) {
-    let mut poller = Poller::new(shared.client.clone(), feed.url.clone());
+fn run(shared: &Shared, feed: &Arc<Feed>) {
+    // Dropped when this returns, which is what closes the forward.
+    let mut route = Route {
+        poller: None,
+        forward: None,
+        failures: 0,
+    };
     loop {
         let request = {
             // The order every thread takes these two locks in: feeds, then control.
             let mut feeds = lock(&shared.feeds);
             let control = lock(&feed.control);
             if control.sinks.is_empty() {
-                // Only this feed is removed: a later subscriber to the URL may already have
-                // replaced it.
-                if feeds
-                    .get(&feed.url)
-                    .is_some_and(|current| std::ptr::eq(Arc::as_ptr(current), feed))
-                {
-                    feeds.remove(&feed.url);
-                }
+                // Every name this feed goes by, and no other feed: a later subscriber may already
+                // have put a new one under the same name.
+                feeds.retain(|_, listed| !Arc::ptr_eq(listed, feed));
                 return;
             }
             control.request.clone()
         };
 
         // A panic in a poll costs that poll, not the thread and not the process.
-        let polled = catch_unwind(AssertUnwindSafe(|| poller.poll(&request)));
-        let interval = match &polled {
-            Ok(snapshot) => poll_interval(
-                snapshot
-                    .ready
-                    .as_ref()
-                    .ok()
-                    .and_then(|ready| ready.freshness.as_ref())
-                    .and_then(|freshness| freshness.poll_interval_secs),
-            ),
-            Err(_) => poll_interval(None),
-        };
+        let polled = catch_unwind(AssertUnwindSafe(|| route.poll(shared, feed, &request)));
 
         let mut control = lock(&feed.control);
-        if let Ok(snapshot) = polled {
-            let snapshot = Arc::new(snapshot);
-            control
-                .sinks
-                .retain_mut(|(_, sink)| sink(&snapshot) == Delivery::Taken);
-            control.last = Some(snapshot);
-        }
+        let interval = match polled {
+            Ok((snapshot, interval)) => {
+                let snapshot = Arc::new(snapshot);
+                control
+                    .sinks
+                    .retain_mut(|(_, sink)| sink(&snapshot) == Delivery::Taken);
+                control.last = Some(snapshot);
+                interval
+            }
+            Err(_) => poll_interval(None),
+        };
         control.refresh = false;
         let deadline = Instant::now() + interval;
         while !control.sinks.is_empty() && !control.refresh && control.request == request {
@@ -445,6 +562,154 @@ mod tests {
         let _subscription = hub.subscribe(&nest.url(), sink);
         next(&snapshots);
         assert_eq!(hub.workers(), 1);
+    }
+
+    /// A forward that needs no ssh: it leads straight to a mock nest.
+    struct FakeForward {
+        local: String,
+        down: Arc<Mutex<Option<String>>>,
+        closed: Arc<AtomicUsize>,
+    }
+
+    impl Forward for FakeForward {
+        fn local_url(&self) -> &str {
+            &self.local
+        }
+
+        fn supervise(&mut self) -> Option<String> {
+            lock(&self.down).clone()
+        }
+    }
+
+    impl Drop for FakeForward {
+        fn drop(&mut self) {
+            self.closed.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// What a test can see and set of the forwards its hub opens.
+    #[derive(Clone, Default)]
+    struct Forwards {
+        opened: Arc<Mutex<Vec<(String, String)>>>,
+        refuse_first: Arc<Mutex<Option<String>>>,
+        down: Arc<Mutex<Option<String>>>,
+        closed: Arc<AtomicUsize>,
+    }
+
+    fn hub_forwarding_to(nest: &MockNest) -> (Hub, Forwards) {
+        let forwards = Forwards::default();
+        let (seen, local) = (forwards.clone(), nest.url());
+        let opener: Opener = Box::new(move |host, url, _quit| {
+            lock(&seen.opened).push((host.to_owned(), url.to_owned()));
+            if let Some(reason) = lock(&seen.refuse_first).take() {
+                return Err(reason);
+            }
+            Ok(Box::new(FakeForward {
+                local: local.clone(),
+                down: Arc::clone(&seen.down),
+                closed: Arc::clone(&seen.closed),
+            }))
+        });
+        let client = Client::new(Duration::from_secs(5), Limits::default()).unwrap();
+        (Hub::with_opener(client, opener), forwards)
+    }
+
+    const REMOTE: &str = "http://127.0.0.1:8107";
+
+    #[test]
+    fn a_nest_behind_ssh_is_polled_through_its_forward() {
+        let nest = MockNest::recorded();
+        let (hub, forwards) = hub_forwarding_to(&nest);
+        let (sink, snapshots) = channel();
+        let subscription = hub.subscribe_via("root@box", REMOTE, sink);
+        let snapshot = next(&snapshots);
+        assert_eq!(snapshot.ready.as_ref().unwrap().last_block, 26_096_410);
+        // The snapshot says where it was really polled, which is what the SQL workbench must use.
+        assert_eq!(snapshot.base, nest.url());
+        assert_eq!(subscription.url(), REMOTE);
+        assert_eq!(
+            *lock(&forwards.opened),
+            [("root@box".to_owned(), REMOTE.to_owned())]
+        );
+
+        drop(subscription);
+        settles_to_no_workers(&hub);
+        assert_eq!(forwards.closed.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn whatever_is_given_the_forwards_url_joins_the_same_poller() {
+        let nest = MockNest::recorded();
+        let (hub, forwards) = hub_forwarding_to(&nest);
+        let (first, first_snapshots) = channel();
+        let _first = hub.subscribe_via("root@box", REMOTE, first);
+        let polled = next(&first_snapshots);
+
+        let (second, second_snapshots) = channel();
+        let _second = hub.subscribe(&polled.base, second);
+        let replayed = second_snapshots
+            .try_recv()
+            .expect("the last snapshot, replayed");
+        assert!(Arc::ptr_eq(&polled, &replayed));
+        assert_eq!(hub.workers(), 1);
+        assert_eq!(lock(&forwards.opened).len(), 1);
+    }
+
+    #[test]
+    fn the_same_url_through_two_hosts_is_two_nests() {
+        let nest = MockNest::recorded();
+        let (hub, forwards) = hub_forwarding_to(&nest);
+        let (first, first_snapshots) = channel();
+        let (second, second_snapshots) = channel();
+        let _first = hub.subscribe_via("root@one", REMOTE, first);
+        let _second = hub.subscribe_via("root@two", REMOTE, second);
+        next(&first_snapshots);
+        next(&second_snapshots);
+        assert_eq!(hub.workers(), 2);
+        assert_eq!(lock(&forwards.opened).len(), 2);
+    }
+
+    #[test]
+    fn a_forward_that_will_not_open_is_reported_and_tried_again() {
+        let nest = MockNest::recorded();
+        let (hub, forwards) = hub_forwarding_to(&nest);
+        let refusal = "ssh to root@box exited (exit status: 255): Permission denied (publickey).";
+        *lock(&forwards.refuse_first) = Some(refusal.to_owned());
+        let (sink, snapshots) = channel();
+        let _subscription = hub.subscribe_via("root@box", REMOTE, sink);
+
+        let failed = next(&snapshots);
+        assert_eq!(failed.ready, Err(Error::Forward(refusal.to_owned())));
+        assert_eq!(failed.base, "");
+        assert_eq!(nest.hits("/ready"), 0);
+        // The first retry comes a second later.
+        let opened = next(&snapshots);
+        assert!(opened.ready.is_ok());
+        assert_eq!(lock(&forwards.opened).len(), 2);
+    }
+
+    #[test]
+    fn a_forward_that_drops_is_reported_until_it_is_back() {
+        let nest = MockNest::recorded();
+        let (hub, forwards) = hub_forwarding_to(&nest);
+        let (sink, snapshots) = channel();
+        let subscription = hub.subscribe_via("root@box", REMOTE, sink);
+        assert!(next(&snapshots).ready.is_ok());
+
+        *lock(&forwards.down) =
+            Some("ssh to root@box exited: Connection reset. Reopening in 1s".into());
+        subscription.refresh();
+        let down = next(&snapshots);
+        assert!(matches!(&down.ready, Err(Error::Forward(reason)) if reason.contains("Reopening")));
+        // Still the forward's URL: the nest has not moved, only gone quiet.
+        assert_eq!(down.base, nest.url());
+        assert_eq!(nest.hits("/ready"), 1);
+
+        *lock(&forwards.down) = None;
+        subscription.refresh();
+        assert!(next(&snapshots).ready.is_ok());
+        // The forward was reopened by its own supervision, not by opening a second one.
+        assert_eq!(lock(&forwards.opened).len(), 1);
     }
 
     #[test]

@@ -79,6 +79,13 @@ pub mod qobject {
         #[cxx_name = "connectTo"]
         fn connect_to(self: Pin<&mut NestStatus>, url: &QString);
 
+        /// Starts showing the nest at `url` as seen from the ssh host `host`, through a forward
+        /// the nest's poller opens and keeps. `url` stays empty until the forward is up, and is
+        /// then the forward's end on this machine: the address everything else should use.
+        #[qinvokable]
+        #[cxx_name = "connectVia"]
+        fn connect_via(self: Pin<&mut NestStatus>, url: &QString, host: &QString);
+
         /// Polls now rather than at the next interval.
         #[qinvokable]
         fn refresh(self: Pin<&mut NestStatus>);
@@ -95,7 +102,7 @@ use desk_core::{
     feed::{Delivery, Hub, Sink, Subscription},
     status::{self, Status},
 };
-use nest_client::{config::check_url, poll::Snapshot};
+use nest_client::{config::check_url, poll::Snapshot, tunnel::check_host};
 
 use crate::guard::{contained, to_i64};
 use qobject::State;
@@ -177,27 +184,52 @@ impl Default for NestStatusRust {
 }
 
 impl qobject::NestStatus {
-    fn connect_to(mut self: Pin<&mut Self>, url: &QString) {
+    fn connect_to(self: Pin<&mut Self>, url: &QString) {
         contained("NestStatus.connectTo", || {
+            self.connect(&url.to_string(), None)
+        });
+    }
+
+    fn connect_via(self: Pin<&mut Self>, url: &QString, host: &QString) {
+        contained("NestStatus.connectVia", || {
+            self.connect(&url.to_string(), Some(&host.to_string()));
+        });
+    }
+
+    fn connect(mut self: Pin<&mut Self>, url: &str, via: Option<&str>) {
+        {
             let generation = self.generation + 1;
             {
                 let mut rust = self.as_mut().rust_mut();
                 rust.generation = generation;
                 rust.subscription = None;
-                rust.status = Status::default();
+                rust.status = via.map_or_else(Status::default, Status::opening);
             }
-            let endpoint = match check_url(&url.to_string()) {
-                Ok(endpoint) => endpoint,
-                Err(problem) => return self.refuse(&url.to_string(), &problem.to_string()),
+            // Through a forward the URL to use is not known until the forward is open, and it is
+            // left empty until then so nothing bound to it polls this machine's port by mistake.
+            let shown = |url: &str| {
+                if via.is_some() {
+                    String::new()
+                } else {
+                    url.to_owned()
+                }
             };
+            let endpoint = match check_url(url) {
+                Ok(endpoint) => endpoint,
+                Err(problem) => return self.refuse(&shown(url), &problem.to_string()),
+            };
+            if let Some(Err(problem)) = via.map(check_host) {
+                return self.refuse("", &problem);
+            }
             let hub = match Hub::global() {
                 Ok(hub) => hub,
-                Err(error) => return self.refuse(&endpoint.url, &error.to_string()),
+                Err(error) => return self.refuse(&shown(&endpoint.url), &error.to_string()),
             };
             {
                 let mut rust = self.as_mut().rust_mut();
-                rust.url = QString::from(&endpoint.url);
-                rust.insecure = endpoint.plain_remote;
+                rust.url = QString::from(&shown(&endpoint.url));
+                // What goes through ssh is not plain HTTP on the wire, whatever the URL says.
+                rust.insecure = via.is_none() && endpoint.plain_remote;
             }
             self.as_mut().publish();
 
@@ -219,14 +251,17 @@ impl qobject::NestStatus {
                     }
                 }
             });
-            let subscription = hub.subscribe(&endpoint.url, sink);
+            let subscription = match via {
+                Some(host) => hub.subscribe_via(host, &endpoint.url, sink),
+                None => hub.subscribe(&endpoint.url, sink),
+            };
             #[cfg(feature = "lifetime-probe")]
             if crate::probe::take_leak() {
                 std::mem::forget(subscription);
                 return;
             }
             self.as_mut().rust_mut().subscription = Some(subscription);
-        });
+        }
     }
 
     fn refresh(self: Pin<&mut Self>) {
@@ -257,6 +292,10 @@ impl qobject::NestStatus {
             return;
         }
         let outcome = self.as_mut().rust_mut().status.apply(snapshot);
+        // Where the poll was really made: for a nest behind ssh, the forward's end on this machine.
+        if !snapshot.base.is_empty() && self.url.to_string() != snapshot.base {
+            self.as_mut().rust_mut().url = QString::from(&snapshot.base);
+        }
         self.as_mut().publish();
         if outcome.restarted {
             self.as_mut().restart_seen();

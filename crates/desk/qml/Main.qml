@@ -7,7 +7,8 @@ ApplicationWindow {
     // Set from Rust before the window is created: one entry per nest in `nests.toml`.
     property var nestNames: []
     property var nestUrls: []
-    property var nestNotes: []
+    // The ssh host each is reached through, or empty.
+    property var nestSsh: []
     // Why `nests.toml` could not be used, when it could not.
     property string configProblem: ""
 
@@ -25,7 +26,7 @@ ApplicationWindow {
         anchors.fill: parent
         nestNames: root.nestNames
         nestUrls: root.nestUrls
-        nestNotes: root.nestNotes
+        nestSsh: root.nestSsh
         configProblem: root.configProblem
     }
 }

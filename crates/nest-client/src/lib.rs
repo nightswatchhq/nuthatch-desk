@@ -16,6 +16,7 @@ mod http;
 pub mod metrics;
 pub mod poll;
 pub mod sql;
+pub mod tunnel;
 pub mod types;
 
 pub use error::Error;

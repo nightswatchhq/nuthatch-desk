@@ -44,8 +44,8 @@ pub struct Tab {
     pub name: String,
     /// The nest's URL, as written. It is checked when the tab connects.
     pub url: String,
-    /// Something the reader must do before the tab can work, or empty.
-    pub note: String,
+    /// The ssh host the nest is reached through, or empty. The URL is then as seen from there.
+    pub ssh: String,
 }
 
 /// The tabs to open, and why `nests.toml` could not be used when it could not.
@@ -72,27 +72,23 @@ pub fn plan(urls: &[String], config: Option<&str>) -> Plan {
         .into_iter()
         .map(|(name, target)| {
             let url = normalize_url(target.url.as_deref().unwrap_or(DEFAULT_URL));
-            // No command is built from the file: the host is named, and the forward is the
-            // reader's to open.
-            let note = target.ssh.map_or_else(String::new, |host| {
-                format!(
-                    "nests.toml reaches this nest through the ssh host '{host}'. \
-                     nuthatch-desk opens no forward of its own: open one to {url}, then connect."
-                )
-            });
-            Tab { name, url, note }
+            Tab {
+                name,
+                url,
+                ssh: target.ssh.unwrap_or_default(),
+            }
         })
         .collect();
     tabs.extend(urls.iter().map(|url| Tab {
         name: normalize_url(url),
         url: normalize_url(url),
-        note: String::new(),
+        ssh: String::new(),
     }));
     if tabs.is_empty() {
         tabs.push(Tab {
             name: "local".into(),
             url: DEFAULT_URL.into(),
-            note: String::new(),
+            ssh: String::new(),
         });
     }
     Plan { tabs, problem }
@@ -151,15 +147,13 @@ mod tests {
     }
 
     #[test]
-    fn a_nest_behind_ssh_says_so_and_builds_no_command() {
-        let config = "[prod]\nurl = \"http://127.0.0.1:8288\"\nssh = \"root@nest; rm -rf ~\"\n";
-        let plan = plan(&[], Some(config));
-        assert!(
-            plan.tabs[0]
-                .note
-                .contains("the ssh host 'root@nest; rm -rf ~'")
-        );
-        assert!(!plan.tabs[0].note.contains("ssh -"));
+    fn a_nest_behind_ssh_keeps_its_host_and_its_url_as_seen_from_there() {
+        let config = "[prod]\nurl = \"http://127.0.0.1:8107/\"\nssh = \"root@nest\"\n";
+        let plan = plan(&["http://127.0.0.1:8288".into()], Some(config));
+        assert_eq!(plan.tabs[0].ssh, "root@nest");
+        assert_eq!(plan.tabs[0].url, "http://127.0.0.1:8107");
+        // A URL from the command line is this machine's.
+        assert_eq!(plan.tabs[1].ssh, "");
     }
 
     #[test]

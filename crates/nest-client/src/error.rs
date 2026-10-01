@@ -15,6 +15,8 @@ pub enum Error {
     Unreadable,
     /// The body was larger than the cap for this endpoint, in bytes.
     TooLarge(usize),
+    /// The ssh forward to the nest is not up. The text says why.
+    Forward(String),
     /// The request could not be built or sent for another reason.
     Failed,
 }
@@ -23,7 +25,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Status(code) => write!(f, "HTTP {code}"),
-            Self::Refused(reason) => f.write_str(reason),
+            Self::Refused(reason) | Self::Forward(reason) => f.write_str(reason),
             Self::Timeout => f.write_str("timed out"),
             Self::Connect => f.write_str("cannot connect"),
             Self::Unreadable => f.write_str("unreadable response"),

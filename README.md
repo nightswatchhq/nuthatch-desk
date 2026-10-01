@@ -78,10 +78,13 @@ url = "http://127.0.0.1:8288"
 ssh = "root@nest-host"
 ```
 
-It opens no ssh forward of its own. A nest the file reaches through ssh gets a tab that names the
-host and waits: open a forward with `ssh -N -L 8288:127.0.0.1:8288 root@nest-host`, then press
-the tab's connect button. It waits because, without the forward, that URL is a port on your own
-machine, and whatever else listens there would be shown under the nest's name. A URL can also be typed into the field at the top right for the session.
+A nest with an `ssh` host is reached as the terminal client reaches it: the client runs
+`ssh -N -L` to that host, polls through the forward, reopens it with a backoff if it drops, and
+closes it with the tab. The `url` is then the nest's address as seen from the host. `ssh` runs in
+batch mode, so it needs a key it can use without asking, and what it says when it fails is shown
+on the tab.
+
+A URL can also be typed into the field at the top right for the session.
 
 Only `http` and `https` URLs are polled. Plain HTTP to anything but this machine is polled with a
 warning on the tab, since what it shows can be read and altered on the way.

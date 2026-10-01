@@ -6,7 +6,7 @@
 //! the mock nest was asked for.
 //!
 //! `cargo test -p desk --test live` runs them all. A name filters, as with the standard harness.
-//! `-- --scenario screenshot` with `DESK_SHOT_URL`, `DESK_SHOT_OUT` and optionally
+//! `-- --scenario screenshot` with `DESK_SHOT_URL`, `DESK_SHOT_OUT` and optionally `DESK_SHOT_SSH` and
 //! `DESK_SHOT_SECTION` renders the real window against a real nest and saves it as a PNG, and
 //! `-- --scenario figures` prints what `NestStatus` shows for the nest at `DESK_SHOT_URL`.
 
@@ -42,6 +42,10 @@ const SCENARIOS: &[Scenario] = &[
     (
         "a_url_that_is_not_http_is_refused",
         a_url_that_is_not_http_is_refused,
+    ),
+    (
+        "an_ssh_host_that_reads_as_an_option_is_refused",
+        an_ssh_host_that_reads_as_an_option_is_refused,
     ),
     ("destroyed_mid_poll", destroyed_mid_poll),
     ("queue_after_destruction", queue_after_destruction),
@@ -269,6 +273,51 @@ fn a_url_that_is_not_http_is_refused() -> Result<(), String> {
     run_then(&qml, || match workers()? {
         0 => Ok(()),
         workers => Err(format!("a refused URL started {workers} poller(s)")),
+    })
+}
+
+fn an_ssh_host_that_reads_as_an_option_is_refused() -> Result<(), String> {
+    let nest = MockNest::recorded();
+    let url = nest.url();
+    let qml = format!(
+        r#"
+import QtQuick
+import desk.bridge
+
+Item {{
+    id: root
+    property string failure: ""
+    NestStatus {{
+        id: status
+        onPollFailed: function(message) {{ root.failure = message }}
+    }}
+    Timer {{
+        interval: 20; running: true
+        onTriggered: status.connectVia("{url}", "-oProxyCommand=touch /tmp/nuthatch-desk-owned")
+    }}
+    Timer {{
+        interval: 1500; running: true
+        onTriggered: {{
+            let ok = root.failure.indexOf("begins with a dash") > 0 && status.url === ""
+                && status.problems === root.failure && status.state === NestStatus.Connecting
+            if (!ok)
+                console.error("failure:", root.failure, "url:", status.url, "state:", status.state)
+            Qt.exit(ok ? 0 : 1)
+        }}
+    }}
+}}
+"#
+    );
+    run_then(&qml, || {
+        if workers()? != 0 {
+            return Err(format!("a refused host started {} poller(s)", workers()?));
+        }
+        match nest.hits("/ready") {
+            0 => Ok(()),
+            hits => Err(format!(
+                "the nest was polled {hits} time(s) behind a refused host"
+            )),
+        }
     })
 }
 
@@ -679,7 +728,7 @@ Main {{
 
     nestNames: ["stopping", "steady"]
     nestUrls: ["{stopping_url}", "{steady_url}"]
-    nestNotes: ["", ""]
+    nestSsh: ["", ""]
 
     function healthy(page) {{
         return page.status.state === NestStatus.Live && page.status.problems === ""
@@ -761,7 +810,7 @@ Main {{
     id: main
     nestNames: ["nest"]
     nestUrls: ["{url}"]
-    nestNotes: [""]
+    nestSsh: [""]
 
     // Where the clipboard is read back from.
     TextEdit {{ id: pasted; visible: false; textFormat: TextEdit.PlainText }}
@@ -849,26 +898,21 @@ import desk.app
 
 Main {{
     id: main
-    nestNames: ["<img src='{url}/fetched'>"]
-    nestUrls: ["{url}"]
-    nestNotes: ["<img src='{url}/fetched'>"]
+    // The second tab's ssh host is markup too. It has a space in it, so it is refused before
+    // any ssh is run, and what remains is to show it without rendering it.
+    nestNames: ["<img src='{url}/fetched'>", "<img src='{url}/fetched'>"]
+    nestUrls: ["{url}", "{url}"]
+    nestSsh: ["", "<img src='{url}/fetched'>"]
     configProblem: "<img src='{url}/fetched'>"
-    // A page with a note waits to be told its forward is open.
-    Timer {{
-        interval: 500; running: true
-        onTriggered: {{
-            let page = main.pages.itemAt(0)
-            if (page.status.url !== "" || page.status.state !== NestStatus.Connecting)
-                Qt.exit(2)
-            page.status.connectTo(page.url)
-        }}
-    }}
     Timer {{
         interval: 3000; running: true
         onTriggered: {{
             let page = main.pages.itemAt(0)
+            let refused = main.pages.itemAt(1)
             Qt.exit(page && page.status.nestName.indexOf("<img") === 0
-                && page.status.state === NestStatus.Live ? 0 : 1)
+                && page.status.state === NestStatus.Live
+                && refused.status.state === NestStatus.Connecting && refused.status.url === ""
+                && refused.status.problems.indexOf("ssh host") >= 0 ? 0 : 1)
         }}
     }}
 }}
@@ -895,6 +939,7 @@ fn screenshot() -> Result<(), String> {
     let (url, out) = (var("DESK_SHOT_URL")?, var("DESK_SHOT_OUT")?);
     let section = std::env::var("DESK_SHOT_SECTION").unwrap_or_else(|_| "0".into());
     let statement = std::env::var("DESK_SHOT_SQL").unwrap_or_default();
+    let ssh = std::env::var("DESK_SHOT_SSH").unwrap_or_default();
     let wait = std::env::var("DESK_SHOT_WAIT_MS").unwrap_or_else(|_| "6000".into());
     run(&format!(
         r#"
@@ -906,7 +951,7 @@ Main {{
     id: main
     nestNames: ["nest"]
     nestUrls: ["{url}"]
-    nestNotes: [""]
+    nestSsh: ["{ssh}"]
     Timer {{
         interval: 1500; running: true
         onTriggered: {{

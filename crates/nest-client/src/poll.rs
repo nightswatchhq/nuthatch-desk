@@ -25,6 +25,9 @@ pub struct Request {
 /// Everything one poll learned. Owned, so it can be handed to another thread whole.
 #[derive(Debug, Clone)]
 pub struct Snapshot {
+    /// The URL that was polled. For a nest behind an ssh forward this is the forward's end on
+    /// this machine. Empty when no request could be made at all.
+    pub base: String,
     /// When the poll finished.
     pub taken: Instant,
     /// How long it took.
@@ -45,6 +48,25 @@ pub struct Snapshot {
     pub selection: Option<Result<Selection, Error>>,
     /// A counter went backwards since the last poll: the nest is a new process.
     pub restarted: bool,
+}
+
+impl Snapshot {
+    /// The snapshot of a poll that could not be made, every endpoint failing with `error`.
+    pub fn failed(error: Error) -> Self {
+        Self {
+            base: String::new(),
+            taken: Instant::now(),
+            elapsed: Duration::ZERO,
+            ready: Err(error.clone()),
+            metrics: Err(error.clone()),
+            hot_rows: Err(error),
+            identity: None,
+            identity_problem: None,
+            roster: None,
+            selection: None,
+            restarted: false,
+        }
+    }
 }
 
 /// Counters that only rise for the life of a Nuthatch process.
@@ -156,6 +178,7 @@ impl Poller {
         });
 
         Snapshot {
+            base: self.base.clone(),
             taken: Instant::now(),
             elapsed: started.elapsed(),
             ready,
@@ -173,22 +196,17 @@ impl Poller {
     /// is kept, and its counters are left alone so a restart is still seen when it comes back.
     fn unreachable(&self, error: Error, started: Instant) -> Snapshot {
         Snapshot {
-            taken: Instant::now(),
+            base: self.base.clone(),
             elapsed: started.elapsed(),
-            ready: Err(error.clone()),
-            metrics: Err(error.clone()),
-            hot_rows: Err(error),
             identity: self.identity.clone(),
-            identity_problem: None,
-            roster: None,
-            selection: None,
-            restarted: false,
+            ..Snapshot::failed(error)
         }
     }
 
     fn runtime_root(&self, roster: Roster, started: Instant) -> Snapshot {
         let not_a_nest = || Error::Refused("a runtime root, not a nest".into());
         Snapshot {
+            base: self.base.clone(),
             taken: Instant::now(),
             elapsed: started.elapsed(),
             ready: Err(not_a_nest()),

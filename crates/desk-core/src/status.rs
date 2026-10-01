@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use nest_client::{poll::Snapshot, types::Ready};
+use nest_client::{Error, poll::Snapshot, types::Ready};
 
 use crate::format::{count_blocks, format_span, group_digits};
 
@@ -110,6 +110,14 @@ pub struct Status {
 }
 
 impl Status {
+    /// A status that says a forward through `host` is being opened, until a poll says otherwise.
+    pub fn opening(host: &str) -> Self {
+        Self {
+            problems: vec![("", format!("opening an ssh forward through {host}"))],
+            ..Self::default()
+        }
+    }
+
     /// Folds one poll in.
     pub fn apply(&mut self, snapshot: &Snapshot) -> Outcome {
         let mut problems = Vec::new();
@@ -117,6 +125,13 @@ impl Status {
             restarted: snapshot.restarted,
             poll_failed: None,
         };
+        if let Err(Error::Forward(reason)) = &snapshot.ready {
+            // Nothing was asked of the nest, so there is one thing to say and not one per endpoint.
+            self.ready_failed = true;
+            self.problems = vec![("", reason.clone())];
+            outcome.poll_failed = Some(reason.clone());
+            return outcome;
+        }
         if let Some(roster) = &snapshot.roster {
             let mounts: Vec<String> = roster.nests.iter().map(|nest| nest.path()).collect();
             let message = format!(
@@ -311,7 +326,10 @@ impl Status {
             problems: self
                 .problems
                 .iter()
-                .map(|(endpoint, error)| format!("{endpoint}: {error}"))
+                .map(|(endpoint, error)| match *endpoint {
+                    "" => error.clone(),
+                    endpoint => format!("{endpoint}: {error}"),
+                })
                 .collect::<Vec<_>>()
                 .join("  ·  "),
         }
@@ -345,6 +363,7 @@ pub(crate) mod tests {
 
     pub(crate) fn snapshot(at: Instant, ready: Result<Ready, Error>) -> Snapshot {
         Snapshot {
+            base: "http://127.0.0.1:8288".into(),
             taken: at,
             elapsed: Duration::from_millis(40),
             ready,
@@ -491,6 +510,34 @@ pub(crate) mod tests {
         assert_eq!(view.problems, "/ready: cannot connect");
         // Stale already says the figures cannot be trusted; partial would say it twice.
         assert!(!view.partial);
+    }
+
+    #[test]
+    fn a_forward_being_opened_says_so_until_a_poll_arrives() {
+        let mut status = Status::opening("root@box");
+        let view = status.view();
+        assert_eq!(view.state, State::Connecting);
+        assert_eq!(view.problems, "opening an ssh forward through root@box");
+        status.apply(&snapshot(Instant::now(), Ok(ready(9, 9))));
+        assert_eq!(status.view().problems, "");
+    }
+
+    #[test]
+    fn a_forward_that_is_down_is_one_problem_in_sshs_own_words() {
+        let reason = "ssh to root@box exited (exit status: 255): Permission denied (publickey).";
+        let mut status = Status::default();
+        let outcome = status.apply(&Snapshot::failed(Error::Forward(reason.into())));
+        assert_eq!(outcome.poll_failed.as_deref(), Some(reason));
+        assert_eq!(status.view().state, State::Connecting);
+        assert_eq!(status.view().problems, reason);
+
+        // One that drops after the nest was seen leaves the last figures up, marked stale.
+        status.apply(&snapshot(Instant::now(), Ok(ready(500, 490))));
+        status.apply(&Snapshot::failed(Error::Forward(reason.into())));
+        let view = status.view();
+        assert_eq!(view.state, State::Stale);
+        assert_eq!(view.indexed, 490);
+        assert_eq!(view.problems, reason);
     }
 
     #[test]

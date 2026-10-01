@@ -12,7 +12,8 @@ Item {
     id: page
 
     required property string url
-    required property string note
+    // The ssh host the nest is reached through, or empty. `url` is then as seen from that host.
+    required property string ssh
 
     // Exposed for the headless tests.
     readonly property alias status: status
@@ -33,12 +34,11 @@ Item {
         clipboard.text = ""
     }
 
-    // A nest the config reaches through ssh is not polled until the reader says the forward is
-    // open. Without one its URL names a port on this machine, and whatever else listens there
-    // would be shown under this nest's name.
     Component.onCompleted: {
-        if (page.note === "")
+        if (page.ssh === "")
             status.connectTo(page.url)
+        else
+            status.connectVia(page.url, page.ssh)
     }
 
     NestStatus {
@@ -114,10 +114,12 @@ Item {
                 text: "nuthatch " + status.version
             }
 
+            // The nest's own address. Behind ssh that is as seen from the host, and what is
+            // polled is the forward's end on this machine.
             Mono {
                 Layout.fillWidth: true
                 opacity: 0.6
-                text: status.url
+                text: page.ssh === "" ? status.url : page.url + " through ssh " + page.ssh
             }
 
             PlainLabel {
@@ -139,26 +141,6 @@ Item {
             wrapMode: Text.Wrap
             elide: Text.ElideNone
             text: "Plain HTTP to a remote host: what this page shows can be read and altered in transit. Reach the nest through an ssh forward or TLS."
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            visible: page.note !== ""
-            spacing: 12
-
-            PlainLabel {
-                Layout.fillWidth: true
-                color: "#c9a227"
-                wrapMode: Text.Wrap
-                elide: Text.ElideNone
-                text: page.note
-            }
-
-            Button {
-                visible: status.url === ""
-                text: "The forward is open: connect"
-                onClicked: status.connectTo(page.url)
-            }
         }
 
         PlainLabel {

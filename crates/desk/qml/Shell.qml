@@ -10,20 +10,20 @@ Item {
 
     required property var nestNames
     required property var nestUrls
-    required property var nestNotes
+    required property var nestSsh
     required property string configProblem
 
     // Exposed for the headless tests.
     readonly property alias pages: pages
 
-    function open(name, url, note) {
-        nests.append({ name: name, url: url, note: note })
+    function open(name, url, ssh) {
+        nests.append({ name: name, url: url, ssh: ssh })
         bar.currentIndex = nests.count - 1
     }
 
     Component.onCompleted: {
         for (let i = 0; i < shell.nestUrls.length; i++)
-            nests.append({ name: shell.nestNames[i], url: shell.nestUrls[i], note: shell.nestNotes[i] })
+            nests.append({ name: shell.nestNames[i], url: shell.nestUrls[i], ssh: shell.nestSsh[i] })
         bar.currentIndex = 0
     }
 
