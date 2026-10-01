@@ -3,14 +3,11 @@
 /// The bridge for [`ResultModel`](qobject::ResultModel).
 #[cxx_qt::bridge]
 pub mod qobject {
-    unsafe extern "C++Qt" {
-        include!(<QtCore/QAbstractTableModel>);
-        /// The Qt base class.
-        #[qobject]
-        type QAbstractTableModel;
-    }
-
     unsafe extern "C++" {
+        include!(<QtCore/QAbstractTableModel>);
+        /// The Qt base class, declared once in [`crate::bases`].
+        type QAbstractTableModel = crate::bases::qobject::QAbstractTableModel;
+
         include!("cxx-qt-lib/qstring.h");
         /// `QString` from `cxx_qt_lib`.
         type QString = cxx_qt_lib::QString;

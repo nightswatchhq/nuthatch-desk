@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-modules=target/cxxqt/qml_modules
+modules="${CARGO_TARGET_DIR:-target}/cxxqt/qml_modules"
 if [ ! -f "$modules/desk/bridge/qmldir" ]; then
     echo "no $modules/desk/bridge/qmldir: run cargo build first" >&2
     exit 2

@@ -18,6 +18,7 @@
 #![deny(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
+pub mod bases;
 mod guard;
 pub mod metric_series;
 pub mod nest_status;

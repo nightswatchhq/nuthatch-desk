@@ -3,14 +3,11 @@
 /// The bridge for [`TableList`](qobject::TableList).
 #[cxx_qt::bridge]
 pub mod qobject {
-    unsafe extern "C++Qt" {
-        include!(<QtCore/QAbstractListModel>);
-        /// The Qt base class.
-        #[qobject]
-        type QAbstractListModel;
-    }
-
     unsafe extern "C++" {
+        include!(<QtCore/QAbstractListModel>);
+        /// The Qt base class, declared once in [`crate::bases`].
+        type QAbstractListModel = crate::bases::qobject::QAbstractListModel;
+
         include!("cxx-qt-lib/qstring.h");
         /// `QString` from `cxx_qt_lib`.
         type QString = cxx_qt_lib::QString;

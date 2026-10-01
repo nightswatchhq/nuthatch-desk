@@ -42,7 +42,7 @@ Qt 6.5 or newer with its QML modules.
 | Platform | Qt |
 | --- | --- |
 | macOS | `brew install qt` |
-| Ubuntu 26.04 | `sudo apt install qt6-base-dev qt6-base-dev-tools qt6-declarative-dev qt6-declarative-dev-tools libgl1-mesa-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-templates qml6-module-qtquick-window qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript` |
+| Ubuntu 26.04 | `sudo apt install qt6-base-dev qt6-base-dev-tools qt6-declarative-dev qt6-declarative-dev-tools libgl1-mesa-dev lld qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-templates qml6-module-qtquick-window qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript` |
 
 Ubuntu 24.04's own Qt is 6.4, which is too old.
 

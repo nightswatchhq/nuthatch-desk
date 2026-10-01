@@ -6,6 +6,7 @@ fn main() {
         // Qt Qml needs Qt Network at link time on macOS.
         .qt_module("Network")
         .files([
+            "src/bases.rs",
             "src/metric_series.rs",
             "src/nest_status.rs",
             "src/result_model.rs",
