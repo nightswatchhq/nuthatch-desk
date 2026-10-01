@@ -1,0 +1,34 @@
+[package]
+name = "desk"
+description = "A read-only desktop client for a running Nuthatch nest."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "nuthatch-desk"
+path = "src/main.rs"
+
+# Runs the real QObjects headless. Qt wants one application per process and wants it on the main
+# thread, so the test is its own `main` and runs each scenario in a child of itself.
+[[test]]
+name = "live"
+harness = false
+
+[dependencies]
+desk-bridge = { path = "../desk-bridge" }
+cxx-qt.workspace = true
+cxx-qt-lib = { workspace = true, features = ["qt_full"] }
+nest-client = { path = "../nest-client" }
+
+[dev-dependencies]
+desk-bridge = { path = "../desk-bridge", features = ["lifetime-probe"] }
+desk-core = { path = "../desk-core" }
+mock-nest = { path = "../mock-nest" }
+
+[build-dependencies]
+cxx-qt-build.workspace = true
+
+[lints]
+workspace = true

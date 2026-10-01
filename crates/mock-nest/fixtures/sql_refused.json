@@ -1,0 +1,1 @@
+{"error":"failed to prepare query: Catalog Error: Table with name nowhere does not exist!\nDid you mean \"pg_indexes\"?\n\nLINE 1: SELECT nope FROM nowhere\n                         ^: Error code 1: Unknown error code\n\nhint: no table `nowhere`. Call the `schema` tool for the list of tables."}

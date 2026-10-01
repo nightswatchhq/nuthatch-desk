@@ -1,0 +1,26 @@
+[package]
+name = "desk-bridge"
+description = "The QObjects of nuthatch-desk, implemented in Rust through cxx-qt."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+# cxx-qt exports this crate's generated headers and initialisers to `desk` under this name.
+links = "desk-bridge"
+
+[dependencies]
+cxx.workspace = true
+cxx-qt.workspace = true
+cxx-qt-lib = { workspace = true, features = ["qt_full"] }
+desk-core = { path = "../desk-core" }
+nest-client = { path = "../nest-client" }
+
+[build-dependencies]
+cxx-qt-build.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# A test hook for the lifetime tests. See `src/probe.rs`.
+lifetime-probe = []

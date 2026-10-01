@@ -1,0 +1,3 @@
+/target
+# Written by cxx-qt-build, with absolute paths into target/.
+.qmlls.ini

@@ -1,0 +1,21 @@
+[package]
+name = "nest-client"
+description = "Read-only HTTP client for a running Nuthatch nest. No Qt."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+# `preserve_order` keeps a row's columns as the nest sent them; `arbitrary_precision` keeps a
+# number's digits as text instead of passing them through an f64.
+serde_json = { version = "1", features = ["preserve_order", "arbitrary_precision"] }
+toml = { version = "1.1.6", default-features = false, features = ["parse", "serde"] }
+
+[dev-dependencies]
+mock-nest = { path = "../mock-nest" }
+
+[lints]
+workspace = true

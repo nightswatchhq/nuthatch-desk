@@ -1,0 +1,230 @@
+# HELP nuthatch_tip_height Latest block height seen from the source (solo runtime only; use nuthatch_nest_tip_height in a multi-nest runtime).
+# TYPE nuthatch_tip_height gauge
+nuthatch_tip_height 26096543
+# HELP nuthatch_last_block Highest block the indexer has committed (solo runtime only; use nuthatch_nest_last_block in a multi-nest runtime).
+# TYPE nuthatch_last_block gauge
+nuthatch_last_block 26096410
+# HELP nuthatch_tip_lag_blocks Blocks the indexer is behind the source tip (solo runtime only; use nuthatch_nest_tip_lag_blocks in a multi-nest runtime).
+# TYPE nuthatch_tip_lag_blocks gauge
+nuthatch_tip_lag_blocks 133
+# HELP nuthatch_sealed_through Highest block sealed to the immutable cold layer (solo runtime only).
+# TYPE nuthatch_sealed_through gauge
+nuthatch_sealed_through 0
+# HELP nuthatch_rss_bytes Resident set size of this process, in bytes.
+# TYPE nuthatch_rss_bytes gauge
+nuthatch_rss_bytes 95502336
+# HELP nuthatch_last_poll_unixtime Unix time of the last successful source poll (0 = never; solo runtime only).
+# TYPE nuthatch_last_poll_unixtime gauge
+nuthatch_last_poll_unixtime 1790846578
+# HELP nuthatch_alert_outbox_depth Pending alert-webhook deliveries in the durable outbox.
+# TYPE nuthatch_alert_outbox_depth gauge
+nuthatch_alert_outbox_depth 0
+# HELP nuthatch_rows_decoded_total Rows decoded since start.
+# TYPE nuthatch_rows_decoded_total counter
+nuthatch_rows_decoded_total 17538
+# HELP nuthatch_rows_sealed_total Rows sealed to Parquet since start.
+# TYPE nuthatch_rows_sealed_total counter
+nuthatch_rows_sealed_total 0
+# HELP nuthatch_reorgs_total Reorgs detected and rolled back since start.
+# TYPE nuthatch_reorgs_total counter
+nuthatch_reorgs_total 0
+# HELP nuthatch_ipfs_unreadable_total Rows an [[ipfs]] declaration read that named no usable CID, since start.
+# TYPE nuthatch_ipfs_unreadable_total counter
+nuthatch_ipfs_unreadable_total 0
+# HELP nuthatch_ipfs_resolved_total Documents an [[ipfs]] declaration named that were fetched and stored, since start.
+# TYPE nuthatch_ipfs_resolved_total counter
+nuthatch_ipfs_resolved_total 0
+# HELP nuthatch_ipfs_given_up_total Documents given up on after every retry failed, since start. Their ranges seal without them.
+# TYPE nuthatch_ipfs_given_up_total counter
+nuthatch_ipfs_given_up_total 0
+# HELP nuthatch_ipfs_unverified_total IPFS documents fetched that could not be proven against their CID, since start.
+# TYPE nuthatch_ipfs_unverified_total counter
+nuthatch_ipfs_unverified_total 0
+# HELP nuthatch_ipfs_oversize_total IPFS documents refused for exceeding the byte, block or depth cap, since start.
+# TYPE nuthatch_ipfs_oversize_total counter
+nuthatch_ipfs_oversize_total 0
+# HELP nuthatch_ipfs_rows_refused_total Proven IPFS documents whose content did not fit their declared typed rows, since start.
+# TYPE nuthatch_ipfs_rows_refused_total counter
+nuthatch_ipfs_rows_refused_total 0
+# HELP nuthatch_ipfs_retries_total Failed IPFS document fetches that were tried again, since start.
+# TYPE nuthatch_ipfs_retries_total counter
+nuthatch_ipfs_retries_total 0
+# HELP nuthatch_http_requests_total HTTP API requests served since start.
+# TYPE nuthatch_http_requests_total counter
+nuthatch_http_requests_total 10
+# HELP nuthatch_sql_queries_total Analytical /sql queries accepted since start.
+# TYPE nuthatch_sql_queries_total counter
+nuthatch_sql_queries_total 0
+# HELP nuthatch_sql_rejections_total Analytical /sql requests refused since start; the unlabelled series is the aggregate and reason is a fixed refusal classification.
+# TYPE nuthatch_sql_rejections_total counter
+nuthatch_sql_rejections_total 0
+nuthatch_sql_rejections_total{reason="busy"} 0
+nuthatch_sql_rejections_total{reason="too_large"} 0
+nuthatch_sql_rejections_total{reason="invalid"} 0
+nuthatch_sql_rejections_total{reason="bounded"} 0
+nuthatch_sql_rejections_total{reason="admission"} 0
+nuthatch_sql_rejections_total{reason="timeout"} 0
+# HELP nuthatch_named_scan_bytes Source-byte bound declared queries were answered under (RFC-0048).
+# TYPE nuthatch_named_scan_bytes histogram
+nuthatch_named_scan_bytes_bucket{le="4096"} 0
+nuthatch_named_scan_bytes_bucket{le="65536"} 0
+nuthatch_named_scan_bytes_bucket{le="1048576"} 0
+nuthatch_named_scan_bytes_bucket{le="16777216"} 0
+nuthatch_named_scan_bytes_bucket{le="268435456"} 0
+nuthatch_named_scan_bytes_bucket{le="536870912"} 0
+nuthatch_named_scan_bytes_bucket{le="+Inf"} 0
+nuthatch_named_scan_bytes_sum 0
+nuthatch_named_scan_bytes_count 0
+# HELP nuthatch_named_scan_refusals_total Declared queries refused by scan admission: over the byte cap, unboundable, or a stale quote.
+# TYPE nuthatch_named_scan_refusals_total counter
+nuthatch_named_scan_refusals_total 0
+# HELP nuthatch_sql_memo_hits_total Analytical /sql queries answered from the deterministic memo (#1186).
+# TYPE nuthatch_sql_memo_hits_total counter
+nuthatch_sql_memo_hits_total 0
+# HELP nuthatch_sql_memo_misses_total Analytical /sql queries that computed because no remembered answer matched their inputs.
+# TYPE nuthatch_sql_memo_misses_total counter
+nuthatch_sql_memo_misses_total 0
+# HELP nuthatch_sql_memo_bytes Serialized rows the memo currently holds, bounded by NUTHATCH_SQL_MEMO_BYTES.
+# TYPE nuthatch_sql_memo_bytes gauge
+nuthatch_sql_memo_bytes 0
+# HELP nuthatch_rpc_requests_total Outbound HTTP POSTs to JSON-RPC endpoints (one per request or batch envelope, including failover retries). Not a method count; see nuthatch_rpc_methods_total.
+# TYPE nuthatch_rpc_requests_total counter
+nuthatch_rpc_requests_total 69
+# HELP nuthatch_rpc_methods_total Individual JSON-RPC method invocations. A batch of 200 eth_getBlockByNumber counts 200 here and 1 on nuthatch_rpc_requests_total. Multiply by a provider's per-method CU schedule to estimate a bill.
+# TYPE nuthatch_rpc_methods_total counter
+nuthatch_rpc_methods_total{method="eth_blockNumber"} 18
+nuthatch_rpc_methods_total{method="eth_chainId"} 2
+nuthatch_rpc_methods_total{method="eth_getBlockByNumber"} 25
+nuthatch_rpc_methods_total{method="eth_getLogs"} 24
+# HELP nuthatch_process_cpu_seconds_total Process CPU time (user + system) in seconds. A counter; clients derive a rolling percentage against wall time.
+# TYPE nuthatch_process_cpu_seconds_total counter
+nuthatch_process_cpu_seconds_total 0.650000
+# HELP nuthatch_hot_store_bytes Bytes of the mutable hot store (redb) on disk, summed across nests.
+# TYPE nuthatch_hot_store_bytes gauge
+nuthatch_hot_store_bytes 17379328
+# HELP nuthatch_sealed_segments_bytes Bytes of sealed Parquet segments on disk, each segment store counted once.
+# TYPE nuthatch_sealed_segments_bytes gauge
+nuthatch_sealed_segments_bytes 0
+# HELP nuthatch_seal_direct_active 1 while a --seal-direct history pass is running, 0 after handoff to the tip cursor (#807).
+# TYPE nuthatch_seal_direct_active gauge
+nuthatch_seal_direct_active 0
+# HELP nuthatch_seal_direct_origin First block of the current or last seal-direct pass.
+# TYPE nuthatch_seal_direct_origin gauge
+nuthatch_seal_direct_origin 0
+# HELP nuthatch_seal_direct_completed Highest block sealed in the current or last seal-direct pass.
+# TYPE nuthatch_seal_direct_completed gauge
+nuthatch_seal_direct_completed 0
+# HELP nuthatch_seal_direct_fetched Highest block fetched and decoded by the current or last seal-direct pass (#1169). Ahead of nuthatch_seal_direct_completed by the work a restart would redo.
+# TYPE nuthatch_seal_direct_fetched gauge
+nuthatch_seal_direct_fetched 0
+# HELP nuthatch_fetch_window_blocks Block span of the cursor's most recent eth_getLogs window (#1170). A window stuck at a handful of blocks after a rate-limited hour is the collapse #1170 describes.
+# TYPE nuthatch_fetch_window_blocks gauge
+nuthatch_fetch_window_blocks 13
+# HELP nuthatch_seal_direct_target Final block of the current or last seal-direct pass (preserved after handoff).
+# TYPE nuthatch_seal_direct_target gauge
+nuthatch_seal_direct_target 0
+# HELP nuthatch_rpc_endpoint_requests_total Outbound RPC POSTs, labelled by a host[:port] identifier, never a URL.
+# TYPE nuthatch_rpc_endpoint_requests_total counter
+# HELP nuthatch_rpc_endpoint_failures_total RPC POSTs that failed, same label.
+# TYPE nuthatch_rpc_endpoint_failures_total counter
+# HELP nuthatch_rpc_endpoint_retries_total RPC POSTs that were a failover retry onto this endpoint.
+# TYPE nuthatch_rpc_endpoint_retries_total counter
+# HELP nuthatch_rpc_request_duration_seconds RPC round-trip duration in seconds, labelled by endpoint.
+# TYPE nuthatch_rpc_request_duration_seconds histogram
+nuthatch_rpc_endpoint_requests_total{endpoint="eth-pokt.nodies.app"} 44
+nuthatch_rpc_endpoint_failures_total{endpoint="eth-pokt.nodies.app"} 8
+nuthatch_rpc_endpoint_retries_total{endpoint="eth-pokt.nodies.app"} 7
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="0.005"} 0
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="0.01"} 5
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="0.025"} 8
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="0.05"} 8
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="0.1"} 8
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="0.25"} 30
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="0.5"} 34
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="1"} 42
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="2.5"} 44
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="5"} 44
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="10"} 44
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth-pokt.nodies.app",le="+Inf"} 44
+nuthatch_rpc_request_duration_seconds_sum{endpoint="eth-pokt.nodies.app"} 12.933440709
+nuthatch_rpc_request_duration_seconds_count{endpoint="eth-pokt.nodies.app"} 44
+nuthatch_rpc_endpoint_requests_total{endpoint="eth.drpc.org"} 23
+nuthatch_rpc_endpoint_failures_total{endpoint="eth.drpc.org"} 8
+nuthatch_rpc_endpoint_retries_total{endpoint="eth.drpc.org"} 2
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="0.005"} 0
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="0.01"} 0
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="0.025"} 0
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="0.05"} 7
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="0.1"} 16
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="0.25"} 23
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="0.5"} 23
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="1"} 23
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="2.5"} 23
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="5"} 23
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="10"} 23
+nuthatch_rpc_request_duration_seconds_bucket{endpoint="eth.drpc.org",le="+Inf"} 23
+nuthatch_rpc_request_duration_seconds_sum{endpoint="eth.drpc.org"} 2.034949667
+nuthatch_rpc_request_duration_seconds_count{endpoint="eth.drpc.org"} 23
+# HELP nuthatch_nest_hot_store_bytes Bytes of this nest's hot store (redb) on disk.
+# TYPE nuthatch_nest_hot_store_bytes gauge
+nuthatch_nest_hot_store_bytes{nest="usdc"} 17379328
+# HELP nuthatch_nest_sealed_segments_bytes Bytes of the sealed segments this nest's manifest names. Segments datasets share are counted under each, so the sum over nests is not disk used; nuthatch_sealed_segments_bytes is.
+# TYPE nuthatch_nest_sealed_segments_bytes gauge
+nuthatch_nest_sealed_segments_bytes{nest="usdc"} 0
+# HELP nuthatch_nest_tip_height Latest source block height, per nest and therefore per chain.
+# TYPE nuthatch_nest_tip_height gauge
+nuthatch_nest_tip_height{nest="usdc"} 26096543
+# HELP nuthatch_nest_last_block Highest block committed, per nest.
+# TYPE nuthatch_nest_last_block gauge
+nuthatch_nest_last_block{nest="usdc"} 26096410
+# HELP nuthatch_nest_tip_lag_blocks Blocks behind the source tip, per nest and therefore per chain.
+# TYPE nuthatch_nest_tip_lag_blocks gauge
+nuthatch_nest_tip_lag_blocks{nest="usdc"} 133
+# HELP nuthatch_nest_sealed_through Highest block sealed to the cold layer, per nest.
+# TYPE nuthatch_nest_sealed_through gauge
+nuthatch_nest_sealed_through{nest="usdc"} 0
+# HELP nuthatch_nest_rows_decoded_total Rows decoded since start, per nest.
+# TYPE nuthatch_nest_rows_decoded_total counter
+nuthatch_nest_rows_decoded_total{nest="usdc"} 17538
+# HELP nuthatch_nest_rows_sealed_total Rows sealed to Parquet since start, per nest.
+# TYPE nuthatch_nest_rows_sealed_total counter
+nuthatch_nest_rows_sealed_total{nest="usdc"} 0
+# HELP nuthatch_nest_ipfs_unreadable_total Rows an [[ipfs]] declaration read that named no usable CID, per nest.
+# TYPE nuthatch_nest_ipfs_unreadable_total counter
+nuthatch_nest_ipfs_unreadable_total{nest="usdc"} 0
+# HELP nuthatch_nest_ipfs_pending Documents named and neither stored nor given up on, per nest. Sealing holds below the lowest.
+# TYPE nuthatch_nest_ipfs_pending gauge
+nuthatch_nest_ipfs_pending{nest="usdc"} 0
+# HELP nuthatch_nest_ipfs_resolved_total Documents fetched and stored since start, per nest.
+# TYPE nuthatch_nest_ipfs_resolved_total counter
+nuthatch_nest_ipfs_resolved_total{nest="usdc"} 0
+# HELP nuthatch_nest_ipfs_given_up_total Documents given up on after every retry failed, since start, per nest.
+# TYPE nuthatch_nest_ipfs_given_up_total counter
+nuthatch_nest_ipfs_given_up_total{nest="usdc"} 0
+# HELP nuthatch_nest_ipfs_unverified_total IPFS documents fetched that could not be proven against their CID, per nest.
+# TYPE nuthatch_nest_ipfs_unverified_total counter
+nuthatch_nest_ipfs_unverified_total{nest="usdc"} 0
+# HELP nuthatch_nest_ipfs_oversize_total IPFS documents refused for exceeding the byte, block or depth cap, per nest.
+# TYPE nuthatch_nest_ipfs_oversize_total counter
+nuthatch_nest_ipfs_oversize_total{nest="usdc"} 0
+# HELP nuthatch_nest_ipfs_rows_refused_total Proven IPFS documents whose content did not fit their declared typed rows, per nest.
+# TYPE nuthatch_nest_ipfs_rows_refused_total counter
+nuthatch_nest_ipfs_rows_refused_total{nest="usdc"} 0
+# HELP nuthatch_nest_ipfs_retries_total Failed IPFS document fetches that were tried again, per nest. Each is logged at warn.
+# TYPE nuthatch_nest_ipfs_retries_total counter
+nuthatch_nest_ipfs_retries_total{nest="usdc"} 0
+# HELP nuthatch_nest_reorgs_total Reorgs detected and rolled back since start, per nest.
+# TYPE nuthatch_nest_reorgs_total counter
+nuthatch_nest_reorgs_total{nest="usdc"} 0
+# HELP nuthatch_nest_seal_direct_active 1 while this nest's --seal-direct pass is running.
+# TYPE nuthatch_nest_seal_direct_active gauge
+nuthatch_nest_seal_direct_active{nest="usdc"} 0
+# HELP nuthatch_nest_seal_direct_completed Highest block sealed in this nest's current or last seal-direct pass.
+# TYPE nuthatch_nest_seal_direct_completed gauge
+nuthatch_nest_seal_direct_completed{nest="usdc"} 0
+# HELP nuthatch_nest_seal_direct_fetched Highest block fetched and decoded by this nest's seal-direct pass (#1169).
+# TYPE nuthatch_nest_seal_direct_fetched gauge
+nuthatch_nest_seal_direct_fetched{nest="usdc"} 0
+# HELP nuthatch_nest_fetch_window_blocks Block span of this nest's most recent eth_getLogs window (#1170).
+# TYPE nuthatch_nest_fetch_window_blocks gauge
+nuthatch_nest_fetch_window_blocks{nest="usdc"} 13

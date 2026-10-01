@@ -1,0 +1,11 @@
+[package]
+name = "mock-nest"
+description = "A stand-in nest for tests: canned bodies over real HTTP."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true

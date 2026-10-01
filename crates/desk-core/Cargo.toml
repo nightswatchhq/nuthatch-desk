@@ -1,0 +1,16 @@
+[package]
+name = "desk-core"
+description = "The state behind each nuthatch-desk QObject, as plain Rust. No Qt."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+nest-client = { path = "../nest-client" }
+
+[dev-dependencies]
+mock-nest = { path = "../mock-nest" }
+
+[lints]
+workspace = true
