@@ -13,7 +13,7 @@ It is also a worked example of QObjects written in Rust, with the ownership and 
 written down and tested. The design, the rules and what the build learned are in
 [docs/rfc-0001.md](docs/rfc-0001.md).
 
-A hobby project. The name is a placeholder.
+A hobby project.
 
 ![The overview of a nest following the tip](docs/overview.png)
 
