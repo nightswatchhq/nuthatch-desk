@@ -9,6 +9,8 @@ use nest_client::poll::Snapshot;
 
 /// Points kept however long the window: an hour at the fastest poll is 1,800.
 const MAX_POINTS: usize = 4_096;
+/// The least time a chart's width stands for, so the first two polls do not span the whole box.
+const SHORTEST_SPAN_SECS: f64 = 60.0;
 
 /// What a series measures.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,7 +153,12 @@ impl Series {
             return (seconds > 0.0 && reading >= was).then(|| (reading - was) / seconds * scale);
         }
         match metric {
-            Metric::Lag => snapshot.ready.as_ref().ok()?.lag_blocks.map(|lag| lag as f64),
+            Metric::Lag => snapshot
+                .ready
+                .as_ref()
+                .ok()?
+                .lag_blocks
+                .map(|lag| lag as f64),
             Metric::SealGap => {
                 let ready = snapshot.ready.as_ref().ok()?;
                 Some(ready.last_block.saturating_sub(ready.sealed_through) as f64)
@@ -169,7 +176,10 @@ impl Series {
         let oldest_kept = newest - self.window.as_secs_f64();
         let mut dropped = 0;
         while self.points.len() > MAX_POINTS
-            || self.points.front().is_some_and(|point| point.at < oldest_kept)
+            || self
+                .points
+                .front()
+                .is_some_and(|point| point.at < oldest_kept)
         {
             self.points.pop_front();
             dropped += 1;
@@ -188,7 +198,10 @@ impl Series {
             return (Change::default(), None);
         };
         let point = Point {
-            at: snapshot.taken.saturating_duration_since(self.origin).as_secs_f64(),
+            at: snapshot
+                .taken
+                .saturating_duration_since(self.origin)
+                .as_secs_f64(),
             value,
         };
         let oldest_kept = point.at - self.window.as_secs_f64();
@@ -257,8 +270,10 @@ impl Series {
 
     /// The line through the points, in a box `width` by `height` with the origin at the top left.
     ///
-    /// The right edge is the newest point and the left edge is one window before it. The top is the
-    /// peak. A series with fewer than two points has no line.
+    /// The right edge is the newest point and the top is the peak. The left edge is one window
+    /// before the newest point once a window of history is held; until then it is the oldest point,
+    /// so a client opened a minute ago draws a minute across the box rather than a sliver of an
+    /// hour. A series with fewer than two points has no line.
     pub fn polyline(&self, width: f64, height: f64) -> Vec<(f64, f64)> {
         let Some(newest) = self.points.back().map(|point| point.at) else {
             return Vec::new();
@@ -266,12 +281,16 @@ impl Series {
         if self.points.len() < 2 || width <= 0.0 || height <= 0.0 {
             return Vec::new();
         }
-        let window = self.window.as_secs_f64().max(f64::MIN_POSITIVE);
+        let held = self.points.front().map_or(0.0, |oldest| newest - oldest.at);
+        let span = held
+            .max(SHORTEST_SPAN_SECS)
+            .min(self.window.as_secs_f64())
+            .max(f64::MIN_POSITIVE);
         let peak = self.peak();
         self.points
             .iter()
             .map(|point| {
-                let x = width * (1.0 - (newest - point.at) / window);
+                let x = width * (1.0 - (newest - point.at) / span);
                 let fill = if peak > 0.0 { point.value / peak } else { 0.0 };
                 (x.clamp(0.0, width), height * (1.0 - fill.clamp(0.0, 1.0)))
             })
@@ -311,8 +330,14 @@ mod tests {
     fn metric_names_are_read_strictly() {
         assert_eq!(Metric::parse("lag"), Some(Metric::Lag));
         assert_eq!(Metric::parse("cpu"), Some(Metric::Cpu));
-        assert_eq!(Metric::parse("rate:a_total"), Some(Metric::Rate("a_total".into())));
-        assert_eq!(Metric::parse("gauge:nuthatch_rss_bytes"), Some(Metric::Gauge("nuthatch_rss_bytes".into())));
+        assert_eq!(
+            Metric::parse("rate:a_total"),
+            Some(Metric::Rate("a_total".into()))
+        );
+        assert_eq!(
+            Metric::parse("gauge:nuthatch_rss_bytes"),
+            Some(Metric::Gauge("nuthatch_rss_bytes".into()))
+        );
         for unknown in ["", "rate:", "sum:a", "Lag", "lag "] {
             assert_eq!(Metric::parse(unknown), None, "{unknown}");
         }
@@ -335,9 +360,18 @@ mod tests {
     fn a_counter_becomes_a_rate_from_its_second_reading() {
         let start = Instant::now();
         let mut rate = series("rate:nuthatch_rpc_requests_total", 3600);
-        assert_eq!(rate.record(&with_metric(start, RPC, 100.0)), Change::default());
+        assert_eq!(
+            rate.record(&with_metric(start, RPC, 100.0)),
+            Change::default()
+        );
         let change = rate.record(&with_metric(start + Duration::from_secs(10), RPC, 150.0));
-        assert_eq!(change, Change { dropped: 0, appended: true });
+        assert_eq!(
+            change,
+            Change {
+                dropped: 0,
+                appended: true
+            }
+        );
         rate.record(&with_metric(start + Duration::from_secs(20), RPC, 150.0));
         assert_eq!(values(&rate), [5.0, 0.0]);
     }
@@ -352,7 +386,11 @@ mod tests {
         restarted.restarted = true;
         assert!(!rate.record(&restarted).appended);
         // A counter that fell without the poller calling it a restart is still not a rate.
-        assert!(!rate.record(&with_metric(start + Duration::from_secs(30), RPC, 1.0)).appended);
+        assert!(
+            !rate
+                .record(&with_metric(start + Duration::from_secs(30), RPC, 1.0))
+                .appended
+        );
         rate.record(&with_metric(start + Duration::from_secs(40), RPC, 21.0));
         assert_eq!(values(&rate), [5.0, 2.0]);
     }
@@ -383,7 +421,11 @@ mod tests {
     #[test]
     fn an_unknown_metric_records_nothing() {
         let mut none = Series::new(None, Duration::from_secs(60));
-        assert!(!none.record(&snapshot(Instant::now(), Ok(ready(5, 5)))).appended);
+        assert!(
+            !none
+                .record(&snapshot(Instant::now(), Ok(ready(5, 5))))
+                .appended
+        );
         assert!(none.is_empty());
         assert!(none.polyline(100.0, 100.0).is_empty());
     }
@@ -393,11 +435,23 @@ mod tests {
         let start = Instant::now();
         let mut lag = series("lag", 60);
         for second in [0, 20, 40, 60] {
-            lag.record(&snapshot(start + Duration::from_secs(second), Ok(ready(100, 100 - second / 20))));
+            lag.record(&snapshot(
+                start + Duration::from_secs(second),
+                Ok(ready(100, 100 - second / 20)),
+            ));
         }
         assert_eq!(lag.len(), 4);
-        let change = lag.record(&snapshot(start + Duration::from_secs(90), Ok(ready(100, 91))));
-        assert_eq!(change, Change { dropped: 2, appended: true });
+        let change = lag.record(&snapshot(
+            start + Duration::from_secs(90),
+            Ok(ready(100, 91)),
+        ));
+        assert_eq!(
+            change,
+            Change {
+                dropped: 2,
+                appended: true
+            }
+        );
         assert_eq!(values(&lag), [2.0, 3.0, 9.0]);
         assert_eq!(lag.set_window(Duration::from_secs(10)), 2);
         assert_eq!(values(&lag), [9.0]);
@@ -410,7 +464,10 @@ mod tests {
         let mut recorded = series("lag", 60);
         recorded.origin = planned.origin;
         for second in (0..600).step_by(7) {
-            let poll = snapshot(start + Duration::from_secs(second), Ok(ready(1_000, 1_000 - second % 13)));
+            let poll = snapshot(
+                start + Duration::from_secs(second),
+                Ok(ready(1_000, 1_000 - second % 13)),
+            );
             let before = planned.len();
             let (change, point) = planned.plan(&poll);
             planned.drop_front(change.dropped);
@@ -430,7 +487,10 @@ mod tests {
         let mut lag = series("lag", 3600);
         let poll_every = 2;
         let mut record = |second: u64| {
-            lag.record(&snapshot(start + Duration::from_secs(second), Ok(ready(second + 5, second))));
+            lag.record(&snapshot(
+                start + Duration::from_secs(second),
+                Ok(ready(second + 5, second)),
+            ));
             (lag.len(), lag.points.capacity())
         };
         let mut after_one_hour = (0, 0);
@@ -450,7 +510,10 @@ mod tests {
         let start = Instant::now();
         let mut lag = series("lag", 10_000_000);
         for second in 0..(MAX_POINTS as u64 + 500) {
-            lag.record(&snapshot(start + Duration::from_secs(second), Ok(ready(9, 9))));
+            lag.record(&snapshot(
+                start + Duration::from_secs(second),
+                Ok(ready(9, 9)),
+            ));
         }
         assert_eq!(lag.len(), MAX_POINTS);
     }
@@ -460,14 +523,37 @@ mod tests {
         let start = Instant::now();
         let mut lag = series("lag", 100);
         for (second, behind) in [(0, 0), (50, 20), (100, 10)] {
-            lag.record(&snapshot(start + Duration::from_secs(second), Ok(ready(1_000, 1_000 - behind))));
+            lag.record(&snapshot(
+                start + Duration::from_secs(second),
+                Ok(ready(1_000, 1_000 - behind)),
+            ));
         }
         let line = lag.polyline(200.0, 80.0);
         assert_eq!(line.len(), 3);
-        let close = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).abs() < 1e-6 && (a.1 - b.1).abs() < 1e-6;
+        let close =
+            |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).abs() < 1e-6 && (a.1 - b.1).abs() < 1e-6;
         assert!(close(line[0], (0.0, 80.0)), "{line:?}");
         assert!(close(line[1], (100.0, 0.0)), "{line:?}");
         assert!(close(line[2], (200.0, 40.0)), "{line:?}");
+    }
+
+    #[test]
+    fn a_young_series_fills_the_box_as_it_grows() {
+        let start = Instant::now();
+        let mut lag = series("lag", 3600);
+        let xs = |lag: &Series| -> Vec<f64> {
+            lag.polyline(120.0, 10.0)
+                .iter()
+                .map(|&(x, _)| x.round())
+                .collect()
+        };
+        lag.record(&snapshot(start, Ok(ready(9, 9))));
+        lag.record(&snapshot(start + Duration::from_secs(30), Ok(ready(9, 9))));
+        // Thirty seconds held: the box stands for the shortest span, a minute.
+        assert_eq!(xs(&lag), [60.0, 120.0]);
+        lag.record(&snapshot(start + Duration::from_secs(240), Ok(ready(9, 9))));
+        // Four minutes held: the box stands for those four minutes, not for the hour.
+        assert_eq!(xs(&lag), [0.0, 15.0, 120.0]);
     }
 
     #[test]
@@ -488,6 +574,10 @@ mod tests {
         rate.record(&with_metric(start, RPC, 100.0));
         rate.record(&with_metric(start + Duration::from_secs(10), RPC, 150.0));
         assert_eq!(rate.clear(), 1);
-        assert!(!rate.record(&with_metric(start + Duration::from_secs(20), RPC, 170.0)).appended);
+        assert!(
+            !rate
+                .record(&with_metric(start + Duration::from_secs(20), RPC, 170.0))
+                .appended
+        );
     }
 }

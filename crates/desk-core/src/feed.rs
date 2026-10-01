@@ -281,7 +281,11 @@ mod tests {
     fn settles_to_no_workers(hub: &Hub) {
         let deadline = Instant::now() + Duration::from_secs(5);
         while hub.workers() != 0 {
-            assert!(Instant::now() < deadline, "{} worker(s) left", hub.workers());
+            assert!(
+                Instant::now() < deadline,
+                "{} worker(s) left",
+                hub.workers()
+            );
             std::thread::sleep(Duration::from_millis(10));
         }
     }
@@ -323,7 +327,9 @@ mod tests {
         let (late, late_snapshots) = channel();
         let _late = hub.subscribe(&nest.url(), late);
         // Already there when `subscribe` returns: no waiting for the twelve-second interval.
-        let replayed = late_snapshots.try_recv().expect("the last snapshot, replayed");
+        let replayed = late_snapshots
+            .try_recv()
+            .expect("the last snapshot, replayed");
         assert!(Arc::ptr_eq(&polled, &replayed));
         assert_eq!(nest.hits("/ready"), 1);
     }
@@ -352,7 +358,11 @@ mod tests {
         }
         let started = Instant::now();
         drop(subscription);
-        assert!(started.elapsed() < Duration::from_millis(200), "{:?}", started.elapsed());
+        assert!(
+            started.elapsed() < Duration::from_millis(200),
+            "{:?}",
+            started.elapsed()
+        );
         // The worker finishes its request, finds nobody listening, and goes.
         settles_to_no_workers(&hub);
         assert!(snapshots.try_recv().is_err());
@@ -446,6 +456,9 @@ mod tests {
         let _subscription = hub.subscribe(&nest.url(), sink);
         let snapshot = next(&snapshots);
         assert!(snapshot.ready.as_ref().unwrap().stalled);
-        assert_eq!(snapshot.identity_problem, Some(("/tables", Error::Status(404))));
+        assert_eq!(
+            snapshot.identity_problem,
+            Some(("/tables", Error::Status(404)))
+        );
     }
 }

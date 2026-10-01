@@ -164,11 +164,17 @@ impl qobject::SqlQuery {
     }
 
     /// Runs on the GUI thread, queued by the statement's worker.
-    fn answer(mut self: Pin<&mut Self>, generation: u64, answer: Result<Answer, Error>, elapsed: Duration) {
+    fn answer(
+        mut self: Pin<&mut Self>,
+        generation: u64,
+        answer: Result<Answer, Error>,
+        elapsed: Duration,
+    ) {
         if generation != self.generation {
             return;
         }
-        self.as_mut().rust_mut().elapsed_ms = i32::try_from(elapsed.as_millis()).unwrap_or(i32::MAX);
+        self.as_mut().rust_mut().elapsed_ms =
+            i32::try_from(elapsed.as_millis()).unwrap_or(i32::MAX);
         match answer {
             Ok(answer) => {
                 let grid = Grid::from(answer);

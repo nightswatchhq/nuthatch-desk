@@ -62,7 +62,10 @@ pub struct Plan {
 pub fn plan(urls: &[String], config: Option<&str>) -> Plan {
     let (nests, problem) = match config.map(parse_nests) {
         Some(Ok(nests)) => (nests, String::new()),
-        Some(Err(error)) => (Default::default(), format!("nests.toml was not used: {error}")),
+        Some(Err(error)) => (
+            Default::default(),
+            format!("nests.toml was not used: {error}"),
+        ),
         None => (Default::default(), String::new()),
     };
     let mut tabs: Vec<Tab> = nests
@@ -113,7 +116,10 @@ mod tests {
         assert_eq!(args(&["--version"]), Ok(Invocation::Version));
         assert_eq!(args(&["--url", "http://a", "-h"]), Ok(Invocation::Help));
         assert_eq!(args(&["--url"]), Err("--url needs a nest's URL".into()));
-        assert_eq!(args(&["--nest", "x"]), Err("unknown argument '--nest'; try --help".into()));
+        assert_eq!(
+            args(&["--nest", "x"]),
+            Err("unknown argument '--nest'; try --help".into())
+        );
     }
 
     #[test]
@@ -148,14 +154,22 @@ mod tests {
     fn a_nest_behind_ssh_says_so_and_builds_no_command() {
         let config = "[prod]\nurl = \"http://127.0.0.1:8288\"\nssh = \"root@nest; rm -rf ~\"\n";
         let plan = plan(&[], Some(config));
-        assert!(plan.tabs[0].note.contains("the ssh host 'root@nest; rm -rf ~'"));
+        assert!(
+            plan.tabs[0]
+                .note
+                .contains("the ssh host 'root@nest; rm -rf ~'")
+        );
         assert!(!plan.tabs[0].note.contains("ssh -"));
     }
 
     #[test]
     fn a_broken_file_is_reported_and_the_client_still_opens() {
         let plan = plan(&[], Some("[local]\nurl = 5\n"));
-        assert!(plan.problem.starts_with("nests.toml was not used: "), "{}", plan.problem);
+        assert!(
+            plan.problem.starts_with("nests.toml was not used: "),
+            "{}",
+            plan.problem
+        );
         assert_eq!(plan.tabs.len(), 1);
         assert_eq!(plan.tabs[0].url, "http://127.0.0.1:8288");
     }

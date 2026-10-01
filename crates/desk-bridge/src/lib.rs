@@ -21,8 +21,8 @@
 mod guard;
 pub mod metric_series;
 pub mod nest_status;
+#[cfg(feature = "lifetime-probe")]
+pub mod probe;
 pub mod result_model;
 pub mod sql_query;
 pub mod table_list;
-#[cfg(feature = "lifetime-probe")]
-pub mod probe;

@@ -3,6 +3,10 @@
 //! This file starts Qt and hands the QML its tabs. Everything the window shows is in
 //! `desk-bridge`, and everything that decides it is in `desk-core`.
 
+// On macOS the linker remarks that both cxx-qt build scripts gave it Qt's rpath, and that
+// Homebrew's Qt was built for a newer macOS than the one in `.cargo/config.toml`.
+#![allow(linker_messages)]
+
 // Nothing here names a Rust item from the bridge, and without a reference its objects are not linked.
 extern crate desk_bridge;
 
@@ -50,7 +54,11 @@ fn main() -> ExitCode {
 
     if let Some(mut engine) = engine.as_mut() {
         let list = |pick: fn(&desk_core::startup::Tab) -> &str| {
-            let list: QStringList = plan.tabs.iter().map(|tab| QString::from(pick(tab))).collect();
+            let list: QStringList = plan
+                .tabs
+                .iter()
+                .map(|tab| QString::from(pick(tab)))
+                .collect();
             QVariant::from(&list)
         };
         let mut properties = QMap::<QMapPair_QString_QVariant>::default();

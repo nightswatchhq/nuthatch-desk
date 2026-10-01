@@ -6,11 +6,12 @@ import desk.bridge
 Row {
     id: badge
 
-    required property int state
+    // Not `state`, which is the item's own.
+    required property int nestState
     required property bool partial
 
     readonly property var looks: {
-        switch (badge.state) {
+        switch (badge.nestState) {
         case NestStatus.Live: return { text: "LIVE", color: "#3fa45b" }
         case NestStatus.Attention: return { text: "ATTENTION", color: "#c9a227" }
         case NestStatus.Backfill: return { text: "BACKFILL", color: "#b565c9" }

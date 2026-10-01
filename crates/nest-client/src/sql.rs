@@ -323,7 +323,16 @@ mod tests {
         for good in ["usdc__transfer", "_seq", "a$b", "T1"] {
             assert!(is_identifier(good), "{good}");
         }
-        for bad in ["", "1abc", "a b", "a\"b", "a;drop", "a-b", "naïve", &"a".repeat(129)] {
+        for bad in [
+            "",
+            "1abc",
+            "a b",
+            "a\"b",
+            "a;drop",
+            "a-b",
+            "naïve",
+            &"a".repeat(129),
+        ] {
             assert!(!is_identifier(bad), "{bad}");
         }
     }
@@ -348,7 +357,9 @@ mod tests {
     #[test]
     fn a_column_with_a_hostile_name_is_left_out() {
         let mut table = transfer();
-        table.columns.push(column("v\", (SELECT 1) AS \"x", "uint256"));
+        table
+            .columns
+            .push(column("v\", (SELECT 1) AS \"x", "uint256"));
         let preview = Preview::new(&table, 50).unwrap();
         assert_eq!(preview.columns, ["from", "to", "value"]);
     }

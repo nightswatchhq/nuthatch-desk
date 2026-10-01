@@ -205,7 +205,9 @@ impl qobject::NestStatus {
             let sink: Sink = Box::new(move |snapshot| {
                 let snapshot = Arc::clone(snapshot);
                 let queued = thread.queue(move |status| {
-                    contained("NestStatus's update", || status.apply(generation, &snapshot));
+                    contained("NestStatus's update", || {
+                        status.apply(generation, &snapshot)
+                    });
                 });
                 // The queue refuses once the QObject is destroyed, which is how the poller learns.
                 match queued {

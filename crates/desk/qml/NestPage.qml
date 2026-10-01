@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -48,6 +50,9 @@ Item {
         url: status.url
     }
 
+    // Qt registers QAbstractListModel with QML and not QAbstractTableModel, so qmllint cannot
+    // follow ResultModel to its base. The engine can, and the headless tests load this file.
+    // qmllint disable unresolved-type
     ResultModel {
         id: feed
         resultKey: tables.feedKey
@@ -57,6 +62,7 @@ Item {
         id: results
         resultKey: query.resultKey
     }
+    // qmllint enable unresolved-type
 
     // The clipboard is reached through a text item: QML has no clipboard type of its own.
     TextEdit {
@@ -81,7 +87,7 @@ Item {
             spacing: 14
 
             StateBadge {
-                state: status.state
+                nestState: status.state
                 partial: status.partial
             }
 
@@ -261,7 +267,7 @@ Item {
                         metric: "gauge:nuthatch_rss_bytes"
                         title: "Memory"
                         unit: " MiB"
-                        scale: 1 / 1048576
+                        factor: 1 / 1048576
                     }
                     Chart {
                         Layout.fillWidth: true

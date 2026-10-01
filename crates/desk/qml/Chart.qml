@@ -15,11 +15,12 @@ Frame {
     required property string title
     property string unit: ""
     property int decimals: 0
-    // Multiplies the metric before it is worded, for bytes shown as MiB.
-    property real scale: 1
+    // Multiplies the metric before it is worded, for bytes shown as MiB. Not `scale`, which is
+    // the item's own and would shrink the chart.
+    property real factor: 1
 
     function figure(value) {
-        return (value * chart.scale).toLocaleString(Qt.locale("en_US"), "f", chart.decimals) + chart.unit
+        return (value * chart.factor).toLocaleString(Qt.locale("en_US"), "f", chart.decimals) + chart.unit
     }
 
     // Exposed for the headless tests.

@@ -285,7 +285,8 @@ impl Status {
         let state = self.state();
         View {
             state,
-            partial: !self.problems.is_empty() && !matches!(state, State::Connecting | State::Stale),
+            partial: !self.problems.is_empty()
+                && !matches!(state, State::Connecting | State::Stale),
             version: ready
                 .and_then(|ready| ready.version.clone())
                 .unwrap_or_default(),
@@ -392,12 +393,30 @@ pub(crate) mod tests {
         let healthy = ready(100, 100);
         assert_eq!(state_of(healthy.clone()), State::Live);
         for sick in [
-            Ready { ready: false, ..healthy.clone() },
-            Ready { stalled: true, ..healthy.clone() },
-            Ready { wedged: true, ..healthy.clone() },
-            Ready { initial_poll_failed: true, ..healthy.clone() },
-            Ready { seal_direct_stalled: true, ..healthy.clone() },
-            Ready { entities_stalled: true, ..healthy.clone() },
+            Ready {
+                ready: false,
+                ..healthy.clone()
+            },
+            Ready {
+                stalled: true,
+                ..healthy.clone()
+            },
+            Ready {
+                wedged: true,
+                ..healthy.clone()
+            },
+            Ready {
+                initial_poll_failed: true,
+                ..healthy.clone()
+            },
+            Ready {
+                seal_direct_stalled: true,
+                ..healthy.clone()
+            },
+            Ready {
+                entities_stalled: true,
+                ..healthy.clone()
+            },
         ] {
             assert_eq!(state_of(sick), State::Attention);
         }
@@ -415,7 +434,10 @@ pub(crate) mod tests {
         };
         assert_eq!(state_of(backfilling.clone()), State::Backfill);
         assert_eq!(
-            state_of(Ready { quarantined: true, ..backfilling }),
+            state_of(Ready {
+                quarantined: true,
+                ..backfilling
+            }),
             State::Quarantined
         );
     }
@@ -524,7 +546,10 @@ pub(crate) mod tests {
         let mut status = Status::default();
         status.apply(&snapshot(start, Ok(ready(1_000, 880))));
         // Ten blocks in 120 seconds: a block every twelve.
-        status.apply(&snapshot(start + Duration::from_secs(120), Ok(ready(1_010, 890))));
+        status.apply(&snapshot(
+            start + Duration::from_secs(120),
+            Ok(ready(1_010, 890)),
+        ));
         let view = status.view();
         assert_eq!(view.sync_label, "120 blocks · 24m behind");
         // One poll interval is one block at this pace, and the nest is 120 behind.

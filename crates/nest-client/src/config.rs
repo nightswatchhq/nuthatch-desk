@@ -118,7 +118,12 @@ mod tests {
 
     #[test]
     fn only_http_and_https_are_polled() {
-        for bad in ["file:///etc/passwd", "ssh://host", "javascript:alert(1)", "ftp://x/"] {
+        for bad in [
+            "file:///etc/passwd",
+            "ssh://host",
+            "javascript:alert(1)",
+            "ftp://x/",
+        ] {
             assert!(
                 matches!(check_url(bad), Err(UrlProblem::Scheme(_))),
                 "{bad}"
@@ -139,7 +144,11 @@ mod tests {
         ] {
             assert!(!check_url(local).unwrap().plain_remote, "{local}");
         }
-        for remote in ["http://203.0.113.7:8288", "http://nest.example.com", "http://[2001:db8::1]"] {
+        for remote in [
+            "http://203.0.113.7:8288",
+            "http://nest.example.com",
+            "http://[2001:db8::1]",
+        ] {
             assert!(check_url(remote).unwrap().plain_remote, "{remote}");
         }
         assert!(!check_url("https://nest.example.com").unwrap().plain_remote);
@@ -147,6 +156,9 @@ mod tests {
 
     #[test]
     fn a_trailing_slash_is_dropped() {
-        assert_eq!(check_url(" http://localhost:8288// ").unwrap().url, "http://localhost:8288");
+        assert_eq!(
+            check_url(" http://localhost:8288// ").unwrap().url,
+            "http://localhost:8288"
+        );
     }
 }

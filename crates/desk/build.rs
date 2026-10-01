@@ -8,6 +8,7 @@ fn main() {
         "qml/Mono.qml",
         "qml/NestPage.qml",
         "qml/PlainLabel.qml",
+        "qml/Shell.qml",
         "qml/Stat.qml",
         "qml/StateBadge.qml",
     ]))

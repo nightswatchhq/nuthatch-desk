@@ -235,7 +235,9 @@ impl qobject::MetricSeries {
             let sink: Sink = Box::new(move |snapshot| {
                 let snapshot = Arc::clone(snapshot);
                 let queued = thread.queue(move |series| {
-                    contained("MetricSeries's update", || series.apply(generation, &snapshot));
+                    contained("MetricSeries's update", || {
+                        series.apply(generation, &snapshot)
+                    });
                 });
                 match queued {
                     Ok(()) => Delivery::Taken,

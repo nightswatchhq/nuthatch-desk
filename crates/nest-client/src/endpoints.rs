@@ -48,8 +48,7 @@ impl Client {
         let tables: Tables = self
             .get_json(&format!("{base}/tables"), &[])
             .map_err(|error| ("/tables", error))?;
-        let (nest_name, chain) = match self.get_json::<NestDocument>(&format!("{base}/nest"), &[])
-        {
+        let (nest_name, chain) = match self.get_json::<NestDocument>(&format!("{base}/nest"), &[]) {
             Ok(nest) => (nest.name.filter(|name| !name.is_empty()), nest.chain),
             // A nest too old to serve `/nest` names itself only in the prose of `/schema`.
             Err(_) => (

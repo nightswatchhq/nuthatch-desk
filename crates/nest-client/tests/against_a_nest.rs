@@ -64,7 +64,10 @@ fn a_healthy_nest_reads_as_it_was_recorded() {
     assert_eq!(selection.latest_block, Some(26_096_410));
     // The nest sends a row's fields alphabetically; the preview puts them back in catalogue order
     // and leaves out the implicit columns and the `_dec` and `_overflow` companions.
-    assert_eq!(selection.newest.columns, ["block_number", "from", "to", "value"]);
+    assert_eq!(
+        selection.newest.columns,
+        ["block_number", "from", "to", "value"]
+    );
     assert_eq!(
         selection.newest.rows[0],
         [
@@ -205,7 +208,12 @@ fn a_table_the_nest_does_not_have_is_not_previewed() {
         table: Some("no_such_table".into()),
         rows: 50,
     };
-    assert!(Poller::new(client(), nest.url()).poll(&request).selection.is_none());
+    assert!(
+        Poller::new(client(), nest.url())
+            .poll(&request)
+            .selection
+            .is_none()
+    );
     assert_eq!(nest.hits("/sql"), 0);
 }
 

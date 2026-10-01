@@ -8,6 +8,12 @@ repository.workspace = true
 # cxx-qt exports this crate's generated headers and initialisers to `desk` under this name.
 links = "desk-bridge"
 
+# The logic behind each QObject is tested in `desk-core` and the objects themselves in `desk`'s
+# live test. A test binary here would link Qt to run nothing.
+[lib]
+test = false
+doctest = false
+
 [dependencies]
 cxx.workspace = true
 cxx-qt.workspace = true

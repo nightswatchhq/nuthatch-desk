@@ -264,7 +264,8 @@ impl Grid {
 }
 
 fn guard_formula(text: &str) -> Cow<'_, str> {
-    let risky = text.starts_with(['=', '+', '-', '@', '\t', '\r']) && Decimal::parse(text).is_none();
+    let risky =
+        text.starts_with(['=', '+', '-', '@', '\t', '\r']) && Decimal::parse(text).is_none();
     if risky {
         Cow::Owned(format!("'{text}"))
     } else {
@@ -321,22 +322,46 @@ mod tests {
         ];
         assert_eq!(
             sorted(&cells, false),
-            [cells[0].clone(), cells[1].clone(), cells[3].clone(), cells[2].clone()]
+            [
+                cells[0].clone(),
+                cells[1].clone(),
+                cells[3].clone(),
+                cells[2].clone()
+            ]
         );
     }
 
     #[test]
     fn negatives_fractions_and_zeros_sort_by_value() {
-        let cells = [n("0.5"), n("-2"), n("-10"), n("0"), n("-0.0"), n("007"), n("0.25")];
+        let cells = [
+            n("0.5"),
+            n("-2"),
+            n("-10"),
+            n("0"),
+            n("-0.0"),
+            n("007"),
+            n("0.25"),
+        ];
         assert_eq!(
             sorted(&cells, false),
-            [n("-10"), n("-2"), n("0"), n("-0.0"), n("0.25"), n("0.5"), n("007")]
+            [
+                n("-10"),
+                n("-2"),
+                n("0"),
+                n("-0.0"),
+                n("0.25"),
+                n("0.5"),
+                n("007")
+            ]
         );
     }
 
     #[test]
     fn an_exponent_falls_back_to_a_double() {
-        assert_eq!(sorted(&[n("1e3"), n("999"), n("2.5e2")], false), [n("2.5e2"), n("999"), n("1e3")]);
+        assert_eq!(
+            sorted(&[n("1e3"), n("999"), n("2.5e2")], false),
+            [n("2.5e2"), n("999"), n("1e3")]
+        );
     }
 
     #[test]
@@ -429,7 +454,12 @@ mod tests {
     }
 
     fn feed(blocks: &[u32]) -> Grid {
-        column(&blocks.iter().map(|block| n(&block.to_string())).collect::<Vec<_>>())
+        column(
+            &blocks
+                .iter()
+                .map(|block| n(&block.to_string()))
+                .collect::<Vec<_>>(),
+        )
     }
 
     /// Applies a patch the way a model does, and checks the result is the new grid.
@@ -453,18 +483,21 @@ mod tests {
         // A full window: two new rows arrive, two fall off the end.
         assert_eq!(
             apply(&feed(&[5, 4, 3, 2]), &feed(&[7, 6, 5, 4])),
-            Patch::Slide { fresh: 2, dropped: 2 }
+            Patch::Slide {
+                fresh: 2,
+                dropped: 2
+            }
         );
         // A window still filling: new rows arrive, none fall off.
         assert_eq!(
             apply(&feed(&[2, 1]), &feed(&[4, 3, 2, 1])),
-            Patch::Slide { fresh: 2, dropped: 0 }
+            Patch::Slide {
+                fresh: 2,
+                dropped: 0
+            }
         );
         // A reorg took the newest row away.
-        assert_eq!(
-            apply(&feed(&[5, 4, 3]), &feed(&[4, 3])),
-            Patch::Reset
-        );
+        assert_eq!(apply(&feed(&[5, 4, 3]), &feed(&[4, 3])), Patch::Reset);
     }
 
     #[test]

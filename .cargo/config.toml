@@ -1,4 +1,6 @@
-# Without this the C++ that cxx-qt compiles targets the SDK's own version while rustc links for
-# 11.0, and the linker warns once per object file. 13 is the oldest macOS Qt 6.8 and later support.
+# Without this rustc links for macOS 11 while the C++ that cxx-qt compiles targets the SDK's own
+# version, and the linker warns once per object file. The value only has to be one both agree on.
+# It is not a claim about where a build runs: that is set by the Qt it links, and Homebrew's is
+# built for the macOS it was installed on.
 [env]
 MACOSX_DEPLOYMENT_TARGET = "13.0"

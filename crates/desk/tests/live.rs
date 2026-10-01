@@ -7,7 +7,12 @@
 //!
 //! `cargo test -p desk --test live` runs them all. A name filters, as with the standard harness.
 //! `-- --scenario screenshot` with `DESK_SHOT_URL`, `DESK_SHOT_OUT` and optionally
-//! `DESK_SHOT_SECTION` renders the real window against a real nest and saves it as a PNG.
+//! `DESK_SHOT_SECTION` renders the real window against a real nest and saves it as a PNG, and
+//! `-- --scenario figures` prints what `NestStatus` shows for the nest at `DESK_SHOT_URL`.
+
+// On macOS the linker remarks that both cxx-qt build scripts gave it Qt's rpath, and that
+// Homebrew's Qt was built for a newer macOS than the one in `.cargo/config.toml`.
+#![allow(linker_messages)]
 
 // Nothing here names a Rust item from the bridge, and without a reference its objects are not linked.
 extern crate desk_bridge;
@@ -30,20 +35,35 @@ type Scenario = (&'static str, fn() -> Result<(), String>);
 const SCENARIOS: &[Scenario] = &[
     ("status_of_a_healthy_nest", status_of_a_healthy_nest),
     ("status_of_a_stalled_nest", status_of_a_stalled_nest),
-    ("status_of_a_nest_that_is_down", status_of_a_nest_that_is_down),
-    ("a_url_that_is_not_http_is_refused", a_url_that_is_not_http_is_refused),
+    (
+        "status_of_a_nest_that_is_down",
+        status_of_a_nest_that_is_down,
+    ),
+    (
+        "a_url_that_is_not_http_is_refused",
+        a_url_that_is_not_http_is_refused,
+    ),
     ("destroyed_mid_poll", destroyed_mid_poll),
     ("queue_after_destruction", queue_after_destruction),
     ("the_feed_slides_in_place", the_feed_slides_in_place),
-    ("a_statement_runs_sorts_copies_is_refused_and_cancels", sql_workbench),
+    (
+        "a_statement_runs_sorts_copies_is_refused_and_cancels",
+        sql_workbench,
+    ),
     ("a_metric_keeps_its_history", a_metric_keeps_its_history),
     ("two_nests_one_stopped", two_nests_one_stopped),
-    ("a_default_text_item_would_fetch_a_nests_markup", a_default_text_item_would_fetch),
-    ("the_window_shows_a_nests_markup_as_text", the_window_shows_markup_as_text),
+    (
+        "a_default_text_item_would_fetch_a_nests_markup",
+        a_default_text_item_would_fetch,
+    ),
+    (
+        "the_window_shows_a_nests_markup_as_text",
+        the_window_shows_markup_as_text,
+    ),
 ];
 
 /// Not tests: run by name only.
-const TOOLS: &[Scenario] = &[("screenshot", screenshot)];
+const TOOLS: &[Scenario] = &[("screenshot", screenshot), ("figures", figures)];
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -94,7 +114,10 @@ fn main() -> ExitCode {
 }
 
 fn child(name: &str) -> ExitCode {
-    let known = SCENARIOS.iter().chain(TOOLS).find(|(known, _)| *known == name);
+    let known = SCENARIOS
+        .iter()
+        .chain(TOOLS)
+        .find(|(known, _)| *known == name);
     let Some((_, scenario)) = known else {
         eprintln!("no scenario called {name}");
         return ExitCode::FAILURE;
@@ -537,7 +560,9 @@ Item {{
     // The first run, the refusal, the cancelled statement and the last run.
     match nest.hits("/sql") {
         4 => Ok(()),
-        hits => Err(format!("expected four statements to reach the nest, saw {hits}")),
+        hits => Err(format!(
+            "expected four statements to reach the nest, saw {hits}"
+        )),
     }
 }
 
@@ -615,7 +640,10 @@ Item {{
 // ---- The window ----------------------------------------------------------------------------
 
 fn two_nests_one_stopped() -> Result<(), String> {
-    let (stopping, steady) = (Arc::new(MockNest::recorded()), Arc::new(MockNest::recorded()));
+    let (stopping, steady) = (
+        Arc::new(MockNest::recorded()),
+        Arc::new(MockNest::recorded()),
+    );
     let stop = stopping.flag("/stop");
     let steady_polls_at_stop = Arc::new(AtomicUsize::new(usize::MAX));
     {
@@ -639,18 +667,15 @@ import QtQuick
 import desk.bridge
 import desk.app
 
-Item {{
+Main {{
     id: root
     property int step: 0
-    readonly property var a: main.pages.count === 2 ? main.pages.itemAt(0) : null
-    readonly property var b: main.pages.count === 2 ? main.pages.itemAt(1) : null
+    readonly property var a: root.pages.count === 2 ? root.pages.itemAt(0) : null
+    readonly property var b: root.pages.count === 2 ? root.pages.itemAt(1) : null
 
-    Main {{
-        id: main
-        nestNames: ["stopping", "steady"]
-        nestUrls: ["{stopping_url}", "{steady_url}"]
-        nestNotes: ["", ""]
-    }}
+    nestNames: ["stopping", "steady"]
+    nestUrls: ["{stopping_url}", "{steady_url}"]
+    nestNotes: ["", ""]
 
     function healthy(page) {{
         return page.status.state === NestStatus.Live && page.status.problems === ""
@@ -742,15 +767,13 @@ import QtQuick
 import QtQuick.Window
 import desk.bridge
 
-Item {{
+Window {{
+    visible: true
+    width: 400
+    height: 100
     NestStatus {{ id: status }}
-    Window {{
-        visible: true
-        width: 400
-        height: 100
-        // No `textFormat`: this is the mistake `PlainLabel` exists to prevent.
-        Text {{ text: status.nestName }}
-    }}
+    // No `textFormat`: this is the mistake `PlainLabel` exists to prevent.
+    Text {{ text: status.nestName }}
     Timer {{ interval: 20; running: true; onTriggered: status.connectTo("{url}") }}
     Timer {{ interval: 2500; running: true; onTriggered: Qt.exit(status.nestName !== "" ? 0 : 1) }}
 }}
@@ -771,14 +794,12 @@ import QtQuick
 import desk.bridge
 import desk.app
 
-Item {{
-    Main {{
-        id: main
-        nestNames: ["<img src='{url}/fetched'>"]
-        nestUrls: ["{url}"]
-        nestNotes: ["<img src='{url}/fetched'>"]
-        configProblem: "<img src='{url}/fetched'>"
-    }}
+Main {{
+    id: main
+    nestNames: ["<img src='{url}/fetched'>"]
+    nestUrls: ["{url}"]
+    nestNotes: ["<img src='{url}/fetched'>"]
+    configProblem: "<img src='{url}/fetched'>"
     Timer {{
         interval: 2500; running: true
         onTriggered: {{
@@ -796,6 +817,15 @@ Item {{
     }
 }
 
+/// Prints what `NestStatus` shows for the nest at `DESK_SHOT_URL` after five seconds, for setting
+/// beside the terminal client on the same nest.
+fn figures() -> Result<(), String> {
+    let url = std::env::var("DESK_SHOT_URL").map_err(|_| "DESK_SHOT_URL is not set".to_owned())?;
+    // A condition that never holds: the scenario's own timeout prints the figures.
+    let _ = run(&status_scenario(&url, "false"));
+    Ok(())
+}
+
 /// Renders the real window against `DESK_SHOT_URL` and saves it to `DESK_SHOT_OUT`.
 fn screenshot() -> Result<(), String> {
     let var = |name: &str| std::env::var(name).map_err(|_| format!("{name} is not set"));
@@ -809,13 +839,11 @@ import QtQuick
 import desk.bridge
 import desk.app
 
-Item {{
-    Main {{
-        id: main
-        nestNames: ["nest"]
-        nestUrls: ["{url}"]
-        nestNotes: [""]
-    }}
+Main {{
+    id: main
+    nestNames: ["nest"]
+    nestUrls: ["{url}"]
+    nestNotes: [""]
     Timer {{
         interval: 1500; running: true
         onTriggered: {{
@@ -827,7 +855,7 @@ Item {{
     }}
     Timer {{
         interval: {wait}; running: true
-        onTriggered: main.contentItem.parent.grabToImage(function(result) {{
+        onTriggered: main.shell.grabToImage(function(result) {{
             Qt.exit(result.saveToFile("{out}") ? 0 : 1)
         }})
     }}
