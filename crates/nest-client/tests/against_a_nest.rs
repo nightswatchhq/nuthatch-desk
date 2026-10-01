@@ -221,6 +221,40 @@ fn a_table_the_nest_does_not_have_is_not_previewed() {
 fn a_nest_that_is_down_fails_every_endpoint_without_panicking() {
     let snapshot = Poller::new(client(), closed_port()).poll(&transfers());
     assert_eq!(snapshot.ready, Err(Error::Connect));
-    assert_eq!(snapshot.identity_problem, Some(("/tables", Error::Connect)));
+    assert_eq!(snapshot.metrics, Err(Error::Connect));
+    assert_eq!(snapshot.hot_rows, Err(Error::Connect));
     assert!(snapshot.identity.is_none() && snapshot.selection.is_none());
+}
+
+#[test]
+fn a_nest_that_does_not_answer_ready_is_asked_nothing_else() {
+    let nest = MockNest::recorded();
+    let client = Client::new(Duration::from_millis(300), Limits::default()).unwrap();
+    let mut poller = Poller::new(client, nest.url());
+    assert!(poller.poll(&transfers()).ready.is_ok());
+    let asked = |path: &str| nest.hits(path);
+    let before = (
+        asked("/metrics"),
+        asked("/"),
+        asked("/sql"),
+        asked("/tables"),
+    );
+
+    nest.delay("/ready", Duration::from_secs(2));
+    let snapshot = poller.poll(&transfers());
+    assert_eq!(snapshot.ready, Err(Error::Timeout));
+    assert_eq!(snapshot.metrics, Err(Error::Timeout));
+    // One request waited out, not five.
+    assert_eq!(
+        (
+            asked("/metrics"),
+            asked("/"),
+            asked("/sql"),
+            asked("/tables")
+        ),
+        before
+    );
+    // What was learned while the nest answered is kept for when it does again.
+    assert_eq!(snapshot.identity.unwrap().tables.tables.len(), 17);
+    assert!(snapshot.elapsed < Duration::from_millis(1500));
 }

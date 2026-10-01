@@ -99,6 +99,12 @@ impl Poller {
     pub fn poll(&mut self, request: &Request) -> Snapshot {
         let started = Instant::now();
         let base = self.base.as_str();
+        // `/ready` goes first, and a nest that cannot be reached at all is asked nothing more: the
+        // other four requests would wait out the same failure one after another.
+        let ready = self.client.ready(base);
+        if let Err(error @ (Error::Connect | Error::Timeout)) = &ready {
+            return self.unreachable(error.clone(), started);
+        }
         let mut identity_problem = None;
         if self.identity.is_none() {
             match self.client.identity(base) {
@@ -116,7 +122,6 @@ impl Poller {
                 }
             }
         }
-        let ready = self.client.ready(base);
         let hot_rows = self.client.hot_rows(base);
         let metrics = self.client.metrics(base);
 
@@ -161,6 +166,23 @@ impl Poller {
             roster: None,
             selection,
             restarted,
+        }
+    }
+
+    /// The snapshot of a nest that did not answer `/ready`. What is known of it from earlier polls
+    /// is kept, and its counters are left alone so a restart is still seen when it comes back.
+    fn unreachable(&self, error: Error, started: Instant) -> Snapshot {
+        Snapshot {
+            taken: Instant::now(),
+            elapsed: started.elapsed(),
+            ready: Err(error.clone()),
+            metrics: Err(error.clone()),
+            hot_rows: Err(error),
+            identity: self.identity.clone(),
+            identity_problem: None,
+            roster: None,
+            selection: None,
+            restarted: false,
         }
     }
 
